@@ -263,7 +263,8 @@ export function registerFinalHandlers(expressApp) {
   const distDir = join(__dirname, '..', 'dist');
   if (existsSync(distDir)) {
     expressApp.use(express.static(distDir));
-    expressApp.get('*', (_req, res) => res.sendFile(join(distDir, 'index.html')));
+    // Express 5 removed bare `*` wildcard — use `/{*path}` for SPA fallback
+    expressApp.get('/{*path}', (_req, res) => res.sendFile(join(distDir, 'index.html')));
   }
 
   // ── 404 + error handlers ─────────────────────────────────────────────────

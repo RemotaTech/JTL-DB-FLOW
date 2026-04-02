@@ -62,6 +62,6 @@ COPY versions ./versions
 
 EXPOSE 3002
 
-# Run DB migrations (log failure but don't abort — server can still start)
-# then start the combined hub + bridge + static frontend server.
-CMD ["sh", "-c", "npx prisma migrate deploy --schema ./prisma/schema.prisma || echo '⚠️  Migration warning (see above) — starting server anyway'; node hub-server.js"]
+# Sync the DB schema (idempotent — works with or without migration files,
+# safe to run against an already-populated database) then start the server.
+CMD ["sh", "-c", "npx prisma db push --schema ./prisma/schema.prisma --skip-generate && node hub-server.js"]
