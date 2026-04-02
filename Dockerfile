@@ -5,6 +5,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Prisma generate needs OpenSSL even at build time
+RUN apk add --no-cache openssl
+
 # Force development so npm ci installs ALL deps (including vite, @vitejs/plugin-react, etc.)
 # Coolify injects NODE_ENV=production at build time which would skip devDependencies otherwise.
 ENV NODE_ENV=development
@@ -32,6 +35,10 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Prisma's query/schema engine binaries require OpenSSL.
+# Alpine doesn't include it by default — install it explicitly.
+RUN apk add --no-cache openssl
+
 # Production dependencies only
 COPY package*.json ./
 RUN npm ci --omit=dev --prefer-offline
@@ -55,5 +62,6 @@ COPY versions ./versions
 
 EXPOSE 3002
 
-# Run DB migrations then start the combined server (hub + bridge + static)
-CMD ["sh", "-c", "npx prisma migrate deploy --schema ./prisma/schema.prisma && node hub-server.js"]
+# Run DB migrations (log failure but don't abort — server can still start)
+# then start the combined hub + bridge + static frontend server.
+CMD ["sh", "-c", "npx prisma migrate deploy --schema ./prisma/schema.prisma || echo '⚠️  Migration warning (see above) — starting server anyway'; node hub-server.js"]
