@@ -20,7 +20,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from './lib/utils';
 import { generateSql } from './utils/queryGenerator';
 import HubModal from './components/HubModal';
-import { loadDbConfig, saveDbConfig, clearDbConfig, EMPTY_CONFIG } from './lib/crypto';
+import { loadDbConfig, saveDbConfig, clearDbConfig, EMPTY_CONFIG, isSecureContext } from './lib/crypto';
 
 // In dev Vite proxies /api → localhost:3001 so BRIDGE_URL stays empty.
 // In production (app hosted on Coolify) the MSSQL bridge still runs on the
@@ -532,14 +532,28 @@ function App() {
                           </label>
                           <span className="flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 font-bold border border-violet-500/20">
                             <Lock size={9} />
-                            AES-256-GCM
+                            {isSecureContext() ? 'AES-256-GCM' : 'XOR-Obfuskierung'}
                           </span>
                           <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
                             NUR BROWSER
                           </span>
                         </div>
+
+                        {/* HTTPS warning — only shown on insecure origins */}
+                        {!isSecureContext() && (
+                          <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                            <span className="text-amber-400 mt-0.5 shrink-0">⚠️</span>
+                            <p className="text-[10px] text-amber-300/80 leading-relaxed">
+                              <strong className="text-amber-300">Kein HTTPS erkannt.</strong>{' '}
+                              AES-256-GCM ist auf unsicheren Verbindungen nicht verfügbar.
+                              Zugangsdaten werden stattdessen mit XOR verschleiert gespeichert.
+                              Bitte HTTPS in Coolify aktivieren für vollständige Verschlüsselung.
+                            </p>
+                          </div>
+                        )}
+
                         <p className="text-[10px] text-white/30 italic -mt-1">
-                          Zugangsdaten werden mit AES-256-GCM verschlüsselt im Browser gespeichert. Der Schlüssel liegt nur im Sitzungsspeicher und verlässt niemals den Browser.
+                          Zugangsdaten werden verschlüsselt im Browser gespeichert. Der Schlüssel liegt nur im Sitzungsspeicher und verlässt niemals den Browser.
                         </p>
 
                         <div className="grid grid-cols-2 gap-3">
