@@ -783,7 +783,7 @@ function App() {
             </AnimatePresence>
 
             {/* ── Node Palette FAB ─────────────────────────────────────── */}
-            <Panel position="bottom-left" className="ml-4 mb-16">
+            <Panel position="top-left" style={{ top: '50%', transform: 'translateY(-50%)' }} className="ml-4">
               <div className="relative flex flex-col items-start gap-0">
 
                 {/* Expanded palette */}
@@ -796,7 +796,7 @@ function App() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 12, scale: 0.95 }}
                         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                        className="absolute bottom-14 left-0 glass rounded-2xl p-2 shadow-2xl border border-white/10 z-20 flex flex-col gap-1 min-w-[180px]"
+                        className="absolute top-1/2 -translate-y-1/2 left-14 glass rounded-2xl p-2 shadow-2xl border border-white/10 z-20 flex flex-col gap-1 min-w-[180px]"
                       >
                         {NODE_ITEMS.map((item, idx) => (
                           <motion.button
