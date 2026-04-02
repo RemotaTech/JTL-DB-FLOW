@@ -3,7 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      viewport-fit=cover   → content extends under iPhone notch / home indicator
+      interactive-widget=resizes-content → shrinks the layout when the on-screen
+                              keyboard appears (instead of overlapping it)
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>JTL Wawi Workflow Creator</title>
   </head>
   <body style="background-color: #0d1117; color: white;">

@@ -347,7 +347,7 @@ function App() {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="w-full h-screen relative bg-[#050505] text-white overflow-hidden font-sans">
+    <div className="w-full relative bg-[#050505] text-white overflow-hidden font-sans" style={{ height: '100dvh' }}>
       <ReactFlowProvider>
         <div className="absolute inset-0">
           <ReactFlow
