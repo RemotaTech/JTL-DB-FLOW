@@ -360,7 +360,7 @@ function App() {
                   </div>
                   <div className="flex flex-col">
                     <span className="font-bold text-sm tracking-tight text-white leading-tight">
-                      JTL<span className="text-white/40 font-medium">FLOW</span>
+                      DB<span className="text-white/40 font-medium">FLOW</span>
                     </span>
                     {currentWorkflowName && (
                       <span className="text-[10px] text-blue-400 font-medium">{currentWorkflowName}</span>
