@@ -58,6 +58,7 @@ function App() {
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
   const [menuOpen, setMenuOpen]   = useState(false);  // burger / mobile nav
   const [nodesOpen, setNodesOpen] = useState(false);  // node-palette FAB
+  const [showHelp,  setShowHelp]  = useState(false);  // help tooltip (click-based)
 
   // MSSQL connection config — encrypted in localStorage, decrypted async on mount
   const [dbConfig, setDbConfig] = useState({ ...EMPTY_CONFIG });
@@ -368,45 +369,36 @@ function App() {
             <Background color="#1a1a1a" gap={20} />
 
             {/* ── Top Navigation Bar ──────────────────────────────────── */}
-            <Panel position="top-center" className="mt-3 w-[calc(100vw-1.5rem)] max-w-[1060px]">
+            {/* NOTE: only the glass pill lives inside ReactFlow to avoid
+                stacking-context fights. Dropdowns & modals are rendered
+                outside ReactFlow as fixed overlays (see end of component). */}
+            <Panel position="top-center" className="mt-3" style={{ left: '50%', transform: 'translateX(-50%)', width: 'min(calc(100vw - 1.5rem), 1060px)' }}>
 
-              {/* shared logo block */}
-              {(() => {
-                const Logo = () => (
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0">
-                      <Database size={14} className="text-white" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="font-bold text-sm tracking-tight text-white leading-tight">
-                        DB<span className="text-white/40 font-medium">FLOW</span>
-                      </span>
-                      {currentWorkflowName && (
-                        <span className="text-[10px] text-blue-400 font-medium truncate max-w-[120px]">{currentWorkflowName}</span>
-                      )}
-                    </div>
+              {/* ── Desktop bar (md+) ───────────────────────────────────── */}
+              <div className="glass px-6 py-3 rounded-full hidden md:flex items-center justify-between shadow-2xl border border-white/10">
+                {/* Logo */}
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0">
+                    <Database size={14} className="text-white" />
                   </div>
-                );
+                  <div className="flex flex-col">
+                    <span className="font-bold text-sm tracking-tight text-white leading-tight">
+                      DB<span className="text-white/40 font-medium">FLOW</span>
+                    </span>
+                    {currentWorkflowName && (
+                      <span className="text-[10px] text-blue-400 font-medium truncate max-w-[140px]">{currentWorkflowName}</span>
+                    )}
+                  </div>
+                </div>
 
-                const RunBtn = () => (
-                  <button
-                    onClick={executeQuery}
-                    disabled={loading || !generatedSql}
-                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-full text-[10px] font-black tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {loading ? <Loader2 size={12} className="animate-spin" /> : <Play size={10} className="fill-current" />}
-                    {loading ? 'RUNNING' : 'RUN'}
-                  </button>
-                );
-
-                const LibraryDropdown = ({ closeParent }) => (
+                {/* Right actions */}
+                <div className="flex items-center gap-3">
+                  {/* Library dropdown */}
                   <div className="relative">
                     <button
                       onClick={() => setShowLibrary(!showLibrary)}
-                      className={cn(
-                        'flex items-center gap-2 text-xs font-bold px-4 py-1.5 rounded-full transition-all border',
-                        showLibrary ? 'bg-white/10 border-white/20 text-white' : 'border-transparent text-white/60 hover:text-white'
-                      )}
+                      className={cn('flex items-center gap-2 text-xs font-bold px-4 py-1.5 rounded-full transition-all border',
+                        showLibrary ? 'bg-white/10 border-white/20 text-white' : 'border-transparent text-white/60 hover:text-white')}
                     >
                       <Library size={14} /> Bibliothek
                       <ChevronDown size={12} className={cn('transition-transform', showLibrary && 'rotate-180')} />
@@ -414,455 +406,115 @@ function App() {
                     <AnimatePresence>
                       {showLibrary && (
                         <>
-                          <div className="fixed inset-0 z-10" onClick={() => setShowLibrary(false)} />
+                          <div className="fixed inset-0 z-[300]" onClick={() => setShowLibrary(false)} />
                           <motion.div
                             initial={{ opacity: 0, y: 10, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                            className="absolute top-full mt-3 left-0 w-56 glass rounded-2xl p-2 shadow-2xl border border-white/10 z-20 flex flex-col gap-1"
+                            className="absolute top-full mt-3 left-0 w-56 glass rounded-2xl p-2 shadow-2xl border border-white/10 z-[400] flex flex-col gap-1"
                           >
-                            {[
-                              { icon: <FilePlus size={14} />, label: 'Neu erstellen',      color: 'bg-blue-500/10 group-hover/btn:bg-blue-500/20 text-blue-400',     action: () => { newWorkflow(); setShowLibrary(false); closeParent?.(); } },
-                              { icon: <FolderOpen size={14} />, label: 'Workflows öffnen', color: 'bg-purple-500/10 group-hover/btn:bg-purple-500/20 text-purple-400', action: () => { setShowWorkflowsModal(true); setShowLibrary(false); closeParent?.(); } },
-                              { icon: <Save size={14} />, label: 'Speichern',              color: 'bg-emerald-500/10 group-hover/btn:bg-emerald-500/20 text-emerald-400', action: () => { saveWorkflow(); setShowLibrary(false); closeParent?.(); }, dividerBefore: true },
-                            ].map(({ icon, label, color, action, dividerBefore }) => (
-                              <React.Fragment key={label}>
-                                {dividerBefore && <div className="h-[1px] bg-white/5 my-1" />}
-                                <button onClick={action} className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/5 text-xs font-semibold text-white/60 hover:text-white transition-all text-left group/btn">
-                                  <div className={cn('p-2 rounded-lg transition-colors', color)}>{icon}</div>
-                                  {label}
-                                </button>
-                              </React.Fragment>
-                            ))}
+                            <button onClick={() => { newWorkflow(); setShowLibrary(false); }} className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/5 text-xs font-semibold text-white/60 hover:text-white transition-all text-left group/btn">
+                              <div className="p-2 bg-blue-500/10 group-hover/btn:bg-blue-500/20 rounded-lg transition-colors text-blue-400"><FilePlus size={14} /></div>
+                              Neu erstellen
+                            </button>
+                            <button onClick={() => { setShowWorkflowsModal(true); setShowLibrary(false); }} className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/5 text-xs font-semibold text-white/60 hover:text-white transition-all text-left group/btn">
+                              <div className="p-2 bg-purple-500/10 group-hover/btn:bg-purple-500/20 rounded-lg transition-colors text-purple-400"><FolderOpen size={14} /></div>
+                              Workflows öffnen
+                            </button>
+                            <div className="h-[1px] bg-white/5 my-1" />
+                            <button onClick={() => { saveWorkflow(); setShowLibrary(false); }} className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/5 text-xs font-semibold text-white/60 hover:text-white transition-all text-left group/btn">
+                              <div className="p-2 bg-emerald-500/10 group-hover/btn:bg-emerald-500/20 rounded-lg transition-colors text-emerald-400"><Save size={14} /></div>
+                              Speichern
+                            </button>
                           </motion.div>
                         </>
                       )}
                     </AnimatePresence>
                   </div>
-                );
 
-                return (
-                  <>
-                    {/* ── Desktop bar (md+) ─────────────────────────────── */}
-                    <div className="glass px-6 py-3 rounded-full hidden md:flex items-center justify-between w-full shadow-2xl border border-white/10">
-                      <Logo />
-                      <div className="flex items-center gap-3">
-                        <LibraryDropdown />
-                        <div className="h-4 w-[1px] bg-white/10" />
-                        <button onClick={() => setShowHub(true)} className="flex items-center gap-2 text-xs font-bold px-4 py-1.5 rounded-full border border-transparent text-white/60 hover:text-white hover:bg-white/5 transition-all">
-                          <Globe size={14} className="text-blue-400" /> Community
-                        </button>
-                        <div className="h-4 w-[1px] bg-white/10" />
-                        <button
-                          onClick={() => { setDbConfigDraft({ ...dbConfig }); setConnTestResult(null); setShowSettings(true); }}
-                          className="flex items-center gap-2 text-[10px] font-bold text-white/40 hover:text-white transition-colors px-3 py-1.5 rounded-full hover:bg-white/5"
-                        >
-                          <Settings size={14} /> SETTINGS
-                        </button>
-                        <div className="h-4 w-[1px] bg-white/10" />
-                        <RunBtn />
-                      </div>
-                    </div>
-
-                    {/* ── Mobile bar (< md) ─────────────────────────────── */}
-                    <div className="md:hidden">
-                      <div className="glass px-4 py-2.5 rounded-2xl flex items-center justify-between w-full shadow-2xl border border-white/10">
-                        <Logo />
-                        <div className="flex items-center gap-2">
-                          <RunBtn />
-                          <button
-                            onClick={() => setMenuOpen(o => !o)}
-                            className="w-9 h-9 flex items-center justify-center rounded-xl glass-hover border border-white/10 text-white/60 hover:text-white transition-all"
-                          >
-                            {menuOpen ? <X size={18} /> : <Menu size={18} />}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Burger dropdown */}
-                      <AnimatePresence>
-                        {menuOpen && (
-                          <>
-                            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                            <motion.div
-                              initial={{ opacity: 0, y: -8, scale: 0.97 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              exit={{ opacity: 0, y: -8, scale: 0.97 }}
-                              className="mt-2 glass rounded-2xl p-3 shadow-2xl border border-white/10 z-20 flex flex-col gap-1"
-                            >
-                              <LibraryDropdown closeParent={() => setMenuOpen(false)} />
-                              <div className="h-[1px] bg-white/5 my-1" />
-                              <button
-                                onClick={() => { setShowHub(true); setMenuOpen(false); }}
-                                className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/5 text-xs font-semibold text-white/60 hover:text-white transition-all text-left"
-                              >
-                                <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400"><Globe size={14} /></div>
-                                Community Hub
-                              </button>
-                              <button
-                                onClick={() => { setDbConfigDraft({ ...dbConfig }); setConnTestResult(null); setShowSettings(true); setMenuOpen(false); }}
-                                className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/5 text-xs font-semibold text-white/60 hover:text-white transition-all text-left"
-                              >
-                                <div className="p-2 bg-white/5 rounded-lg text-white/40"><Settings size={14} /></div>
-                                Einstellungen
-                              </button>
-                            </motion.div>
-                          </>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </>
-                );
-              })()}
-            </Panel>
-
-            {/* ── Settings Modal ──────────────────────────────────────── */}
-            <AnimatePresence>
-              {showSettings && (
-                <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                  <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.9, opacity: 0 }}
-                    className="glass w-[calc(100vw-2rem)] max-w-[480px] rounded-3xl overflow-hidden shadow-2xl border border-white/10 max-h-[90vh] flex flex-col"
+                  <div className="h-4 w-[1px] bg-white/10" />
+                  <button onClick={() => setShowHub(true)} className="flex items-center gap-2 text-xs font-bold px-4 py-1.5 rounded-full border border-transparent text-white/60 hover:text-white hover:bg-white/5 transition-all">
+                    <Globe size={14} className="text-blue-400" /> Community
+                  </button>
+                  <div className="h-4 w-[1px] bg-white/10" />
+                  <button
+                    onClick={() => { setDbConfigDraft({ ...dbConfig }); setConnTestResult(null); setShowSettings(true); }}
+                    className="flex items-center gap-2 text-[10px] font-bold text-white/40 hover:text-white transition-colors px-3 py-1.5 rounded-full hover:bg-white/5"
                   >
-                    {/* Header */}
-                    <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/[0.02] shrink-0">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center">
-                          <Settings size={16} className="text-white/60" />
-                        </div>
-                        <h2 className="text-base font-bold">Einstellungen</h2>
-                      </div>
-                      <button
-                        onClick={() => setShowSettings(false)}
-                        className="p-2 hover:bg-white/10 rounded-xl transition-colors text-white/40 hover:text-white"
-                      >
-                        <Plus size={16} className="rotate-45" />
-                      </button>
-                    </div>
-
-                    {/* Body */}
-                    <div className="p-6 space-y-6 overflow-y-auto flex-1">
-
-                      {/* JTL Version */}
-                      <section className="space-y-3">
-                        <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
-                          JTL Wawi Version
-                        </label>
-                        <div className="relative">
-                          <select
-                            value={selectedVersion}
-                            onChange={e => setSelectedVersion(e.target.value)}
-                            className="w-full appearance-none px-4 py-3 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white focus:outline-none focus:border-blue-500/50"
-                          >
-                            <option value="">Standard (schema.json)</option>
-                            {availableVersions.map(v => (
-                              <option key={v} value={v}>{v}</option>
-                            ))}
-                          </select>
-                          <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
-                        </div>
-                        <p className="text-[10px] text-white/30 italic">
-                          Die Änderung der Version lädt das entsprechende Datenbankschema.
-                        </p>
-                      </section>
-
-                      {/* MSSQL Connection */}
-                      <section className="space-y-3">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
-                            MSSQL Verbindung
-                          </label>
-                          <span className="flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 font-bold border border-violet-500/20">
-                            <Lock size={9} />
-                            {isSecureContext() ? 'AES-256-GCM' : 'XOR-Obfuskierung'}
-                          </span>
-                          <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
-                            NUR BROWSER
-                          </span>
-                        </div>
-
-                        {/* HTTPS warning — only shown on insecure origins */}
-                        {!isSecureContext() && (
-                          <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
-                            <span className="text-amber-400 mt-0.5 shrink-0">⚠️</span>
-                            <p className="text-[10px] text-amber-300/80 leading-relaxed">
-                              <strong className="text-amber-300">Kein HTTPS erkannt.</strong>{' '}
-                              AES-256-GCM ist auf unsicheren Verbindungen nicht verfügbar.
-                              Zugangsdaten werden stattdessen mit XOR verschleiert gespeichert.
-                              Bitte HTTPS in Coolify aktivieren für vollständige Verschlüsselung.
-                            </p>
-                          </div>
-                        )}
-
-                        <p className="text-[10px] text-white/30 italic -mt-1">
-                          Zugangsdaten werden verschlüsselt im Browser gespeichert. Der Schlüssel liegt nur im Sitzungsspeicher und verlässt niemals den Browser.
-                        </p>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] text-white/40 font-semibold uppercase tracking-widest">DB_HOST</label>
-                            <input
-                              type="text"
-                              placeholder="192.168.1.100"
-                              value={dbConfigDraft.host}
-                              onChange={e => setDbConfigDraft(p => ({ ...p, host: e.target.value }))}
-                              className="w-full px-3 py-2.5 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] text-white/40 font-semibold uppercase tracking-widest">DB_PORT</label>
-                            <input
-                              type="text"
-                              placeholder="1433"
-                              value={dbConfigDraft.port}
-                              onChange={e => setDbConfigDraft(p => ({ ...p, port: e.target.value }))}
-                              className="w-full px-3 py-2.5 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] text-white/40 font-semibold uppercase tracking-widest">
-                              DB_INSTANCE <span className="normal-case text-white/20">(optional)</span>
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="SQLS"
-                              value={dbConfigDraft.instance}
-                              onChange={e => setDbConfigDraft(p => ({ ...p, instance: e.target.value }))}
-                              className="w-full px-3 py-2.5 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] text-white/40 font-semibold uppercase tracking-widest">DB_NAME</label>
-                            <input
-                              type="text"
-                              placeholder="eazybusiness"
-                              value={dbConfigDraft.database}
-                              onChange={e => setDbConfigDraft(p => ({ ...p, database: e.target.value }))}
-                              className="w-full px-3 py-2.5 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] text-white/40 font-semibold uppercase tracking-widest">DB_USER</label>
-                            <input
-                              type="text"
-                              placeholder="sa"
-                              value={dbConfigDraft.user}
-                              onChange={e => setDbConfigDraft(p => ({ ...p, user: e.target.value }))}
-                              className="w-full px-3 py-2.5 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] text-white/40 font-semibold uppercase tracking-widest">DB_PASS</label>
-                            <div className="relative">
-                              <input
-                                type={showPassword ? 'text' : 'password'}
-                                placeholder="••••••••"
-                                value={dbConfigDraft.password}
-                                onChange={e => setDbConfigDraft(p => ({ ...p, password: e.target.value }))}
-                                className="w-full px-3 py-2.5 pr-10 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setShowPassword(s => !s)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
-                              >
-                                {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Connection test feedback */}
-                        {connTestResult && (
-                          <div className={cn(
-                            'flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold',
-                            connTestResult === 'ok'
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : 'bg-red-500/10 text-red-400 border border-red-500/20'
-                          )}>
-                            {connTestResult === 'ok'
-                              ? <><CheckCircle2 size={14} /> Verbindung erfolgreich!</>
-                              : <><XCircle size={14} /> Verbindung fehlgeschlagen.</>}
-                          </div>
-                        )}
-
-                        {/* Test button */}
-                        <button
-                          onClick={testConnection}
-                          disabled={testingConn || !dbConfigDraft.host || !dbConfigDraft.user}
-                          className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-white/60 hover:text-white transition-all border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          {testingConn ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
-                          Verbindung testen
-                        </button>
-                      </section>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="p-4 border-t border-white/10 bg-white/[0.02] shrink-0 flex items-center justify-end gap-3">
-                      <button
-                        onClick={() => setShowSettings(false)}
-                        className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-white/40 hover:text-white transition-all border border-white/10"
-                      >
-                        Abbrechen
-                      </button>
-                      <button
-                        onClick={applySettings}
-                        className="px-5 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white transition-all shadow-lg shadow-blue-600/20"
-                      >
-                        Speichern
-                      </button>
-                    </div>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
-
-            {/* ── Workflows Modal ─────────────────────────────────────── */}
-            <AnimatePresence>
-              {showWorkflowsModal && (
-                <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                  <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.9, opacity: 0 }}
-                    className="glass w-[calc(100vw-2rem)] max-w-[520px] rounded-3xl overflow-hidden shadow-2xl border border-white/10 max-h-[80vh] flex flex-col"
+                    <Settings size={14} /> SETTINGS
+                  </button>
+                  <div className="h-4 w-[1px] bg-white/10" />
+                  <button onClick={executeQuery} disabled={loading || !generatedSql}
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-full text-[10px] font-black tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/[0.02] shrink-0">
-                      <h2 className="text-base font-bold">Gespeicherte Workflows</h2>
-                      <button
-                        onClick={() => setShowWorkflowsModal(false)}
-                        className="p-2 hover:bg-white/10 rounded-xl transition-colors text-white/40 hover:text-white"
-                      >
-                        <Plus size={16} className="rotate-45" />
-                      </button>
-                    </div>
-                    <div className="p-6 space-y-3 overflow-y-auto flex-1">
-                      {workflows.length === 0 ? (
-                        <p className="text-sm text-center text-white/30 py-10 italic">
-                          Keine gespeicherten Workflows vorhanden.
-                        </p>
-                      ) : (
-                        workflows.map(wf => (
-                          <div key={wf.id} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors">
-                            <div>
-                              <div className="font-bold text-sm text-white/90">{wf.name}</div>
-                              <div className="text-[10px] text-white/30 mt-0.5">
-                                {new Date(wf.updatedAt).toLocaleString()}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => loadWorkflow(wf)}
-                                className="px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg text-xs font-bold hover:bg-blue-500/30 transition-colors"
-                              >
-                                Öffnen
-                              </button>
-                              <button
-                                onClick={() => deleteWorkflow(wf.id)}
-                                className="p-1.5 text-red-400/50 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
-                              >
-                                <Trash2 size={15} />
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </motion.div>
+                    {loading ? <Loader2 size={12} className="animate-spin" /> : <Play size={10} className="fill-current" />}
+                    {loading ? 'RUNNING' : 'RUN'}
+                  </button>
                 </div>
-              )}
-            </AnimatePresence>
-
-            {/* ── Node Palette FAB ─────────────────────────────────────── */}
-            <Panel position="top-left" style={{ top: '50%', transform: 'translateY(-50%)' }} className="ml-4">
-              <div className="relative flex flex-col items-start gap-0">
-
-                {/* Expanded palette */}
-                <AnimatePresence>
-                  {nodesOpen && (
-                    <>
-                      <div className="fixed inset-0 z-10" onClick={() => setNodesOpen(false)} />
-                      <motion.div
-                        initial={{ opacity: 0, y: 12, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 12, scale: 0.95 }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                        className="absolute top-1/2 -translate-y-1/2 left-14 glass rounded-2xl p-2 shadow-2xl border border-white/10 z-20 flex flex-col gap-1 min-w-[180px]"
-                      >
-                        {NODE_ITEMS.map((item, idx) => (
-                          <motion.button
-                            key={item.type}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: idx * 0.03 }}
-                            onClick={() => { addNode(item.type); setNodesOpen(false); }}
-                            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-white/8 text-left transition-all group/item"
-                          >
-                            <div className={cn('p-1.5 rounded-lg bg-white/5 group-hover/item:bg-white/10 transition-colors', item.color)}>
-                              {item.icon}
-                            </div>
-                            <span className="text-xs font-semibold text-white/70 group-hover/item:text-white transition-colors whitespace-nowrap">
-                              {item.label}
-                            </span>
-                          </motion.button>
-                        ))}
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
-
-                {/* FAB toggle button */}
-                <button
-                  onClick={() => setNodesOpen(o => !o)}
-                  className={cn(
-                    'w-11 h-11 rounded-2xl flex items-center justify-center shadow-2xl border transition-all duration-200',
-                    nodesOpen
-                      ? 'bg-blue-600 border-blue-500 text-white rotate-45'
-                      : 'glass border-white/15 text-white/70 hover:text-white hover:border-white/30'
-                  )}
-                >
-                  <Plus size={20} className="transition-transform duration-200" />
-                </button>
               </div>
-            </Panel>
 
-            {/* ── Canvas Help ─────────────────────────────────────────── */}
-            <Panel position="top-right" style={{ top: '50%', transform: 'translateY(-50%)' }} className="mr-6 z-[200]">
-              <div className="relative group/help">
-                <div className="w-10 h-10 rounded-full glass flex items-center justify-center text-white/40 hover:text-white border border-white/10 hover:border-white/20 transition-all cursor-help shadow-2xl">
-                  <HelpCircle size={20} />
-                </div>
-                <div className="absolute bottom-full right-0 mb-4 w-64 glass rounded-3xl p-5 shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10 opacity-0 group-hover/help:opacity-100 translate-y-2 group-hover/help:translate-y-0 pointer-events-none transition-all duration-300 z-50">
-                  <div className="space-y-4">
-                    {[
-                      { icon: <MousePointer size={14} />, color: 'bg-blue-500/20 text-blue-400', title: 'Navigation', desc: 'Klicken & Ziehen zum Bewegen' },
-                      { icon: <Sparkles size={14} />, color: 'bg-purple-500/20 text-purple-400', title: 'Zoom', desc: 'Mausrad zum Vergrößern' },
-                      { icon: <Move size={14} />, color: 'bg-emerald-500/20 text-emerald-400', title: 'Nodes', desc: 'Header ziehen zum Bewegen' },
-                    ].map(({ icon, color, title, desc }) => (
-                      <div key={title} className="flex items-center gap-3">
-                        <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center', color)}>{icon}</div>
-                        <div className="flex flex-col">
-                          <span className="text-[10px] font-bold text-white uppercase tracking-wider">{title}</span>
-                          <span className="text-[11px] text-white/60">{desc}</span>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="h-[1px] bg-white/5" />
-                    <p className="text-[10px] text-white/30 italic text-center leading-tight">
-                      Mausrad über Nodes steuert nur die Listen innerhalb der Box.
-                    </p>
+              {/* ── Mobile bar (< md) ───────────────────────────────────── */}
+              <div className="glass px-4 py-2.5 rounded-2xl flex items-center justify-between md:hidden shadow-2xl border border-white/10">
+                {/* Logo */}
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0">
+                    <Database size={14} className="text-white" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-bold text-sm tracking-tight text-white leading-tight">
+                      DB<span className="text-white/40 font-medium">FLOW</span>
+                    </span>
+                    {currentWorkflowName && (
+                      <span className="text-[10px] text-blue-400 font-medium truncate max-w-[90px]">{currentWorkflowName}</span>
+                    )}
                   </div>
                 </div>
+                {/* Run + Burger (dropdown rendered outside ReactFlow) */}
+                <div className="flex items-center gap-2">
+                  <button onClick={executeQuery} disabled={loading || !generatedSql}
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-full text-[10px] font-black tracking-widest flex items-center gap-1.5 transition-all shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {loading ? <Loader2 size={12} className="animate-spin" /> : <Play size={10} className="fill-current" />}
+                    {loading ? 'RUN…' : 'RUN'}
+                  </button>
+                  <button
+                    onClick={() => setMenuOpen(o => !o)}
+                    className="w-9 h-9 flex items-center justify-center rounded-xl glass border border-white/10 text-white/60 hover:text-white transition-all"
+                  >
+                    {menuOpen ? <X size={18} /> : <Menu size={18} />}
+                  </button>
+                </div>
               </div>
+            </Panel>
+
+            {/* ── Node Palette FAB ─────────────────────────────────────── */}
+            {/* Only the toggle button lives inside ReactFlow; the expanded
+                palette panel is rendered outside as a fixed overlay.       */}
+            <Panel position="top-left" style={{ top: '50%', transform: 'translateY(-50%)' }} className="ml-4">
+              <button
+                onClick={() => setNodesOpen(o => !o)}
+                className={cn(
+                  'w-11 h-11 rounded-2xl flex items-center justify-center shadow-2xl border transition-all duration-200',
+                  nodesOpen
+                    ? 'bg-blue-600 border-blue-500 text-white'
+                    : 'glass border-white/15 text-white/70 hover:text-white hover:border-white/30'
+                )}
+              >
+                <Plus size={20} className={cn('transition-transform duration-200', nodesOpen && 'rotate-45')} />
+              </button>
+            </Panel>
+
+            {/* ── Canvas Help (button only — panel rendered outside ReactFlow) */}
+            <Panel position="top-right" style={{ top: '50%', transform: 'translateY(-50%)' }} className="mr-4">
+              <button
+                onClick={() => setShowHelp(h => !h)}
+                className={cn(
+                  'w-10 h-10 rounded-full glass flex items-center justify-center border transition-all shadow-2xl',
+                  showHelp ? 'text-white border-white/30' : 'text-white/40 hover:text-white border-white/10 hover:border-white/20'
+                )}
+              >
+                <HelpCircle size={20} />
+              </button>
             </Panel>
 
             {/* ── Bottom Preview Panel ─────────────────────────────────── */}
@@ -970,6 +622,318 @@ function App() {
           </ReactFlow>
         </div>
       </ReactFlowProvider>
+
+      {/* ══════════════════════════════════════════════════════════════
+          ALL fixed overlays live here — outside ReactFlow so they are
+          never trapped inside a stacking context created by RF transforms.
+          ══════════════════════════════════════════════════════════════ */}
+
+      {/* ── Mobile burger dropdown ───────────────────────────────── */}
+      <AnimatePresence>
+        {menuOpen && (
+          <div
+            className="md:hidden fixed inset-0 z-[500]"
+            onClick={() => setMenuOpen(false)}
+          >
+            {/* top-[68px] = 12px margin + ~56px bar height */}
+            <div
+              className="absolute top-[68px] left-3 right-3"
+              onClick={e => e.stopPropagation()}
+            >
+              <motion.div
+                initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                className="glass rounded-2xl p-3 shadow-2xl border border-white/10 flex flex-col gap-1"
+              >
+                {[
+                  { icon: <FilePlus size={14} />,   label: 'Neu erstellen',     color: 'bg-blue-500/10 text-blue-400',     action: () => { newWorkflow(); setMenuOpen(false); } },
+                  { icon: <FolderOpen size={14} />, label: 'Workflows öffnen',  color: 'bg-purple-500/10 text-purple-400', action: () => { setShowWorkflowsModal(true); setMenuOpen(false); } },
+                  { icon: <Save size={14} />,       label: 'Speichern',         color: 'bg-emerald-500/10 text-emerald-400', action: () => { saveWorkflow(); setMenuOpen(false); }, divider: true },
+                  { icon: <Globe size={14} />,      label: 'Community Hub',     color: 'bg-blue-500/10 text-blue-400',     action: () => { setShowHub(true); setMenuOpen(false); }, divider: true },
+                  { icon: <Settings size={14} />,   label: 'Einstellungen',     color: 'bg-white/5 text-white/50',         action: () => { setDbConfigDraft({ ...dbConfig }); setConnTestResult(null); setShowSettings(true); setMenuOpen(false); } },
+                ].map(({ icon, label, color, action, divider }) => (
+                  <React.Fragment key={label}>
+                    {divider && <div className="h-[1px] bg-white/5 my-1" />}
+                    <button
+                      onClick={action}
+                      className="flex items-center gap-3 w-full p-3 rounded-xl active:bg-white/10 text-sm font-semibold text-white/70 transition-all text-left"
+                    >
+                      <div className={cn('p-2 rounded-lg', color)}>{icon}</div>
+                      {label}
+                    </button>
+                  </React.Fragment>
+                ))}
+              </motion.div>
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Node palette (fixed, left-center) ───────────────────── */}
+      <AnimatePresence>
+        {nodesOpen && (
+          <div
+            className="fixed inset-0 z-[500]"
+            onClick={() => setNodesOpen(false)}
+          >
+            <div
+              className="absolute left-16 top-1/2 -translate-y-1/2"
+              onClick={e => e.stopPropagation()}
+            >
+              <motion.div
+                initial={{ opacity: 0, x: -12, scale: 0.95 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: -12, scale: 0.95 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                className="glass rounded-2xl p-2 shadow-2xl border border-white/10 flex flex-col gap-1 min-w-[190px]"
+              >
+                {NODE_ITEMS.map((item, idx) => (
+                  <motion.button
+                    key={item.type}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.03 }}
+                    onClick={() => { addNode(item.type); setNodesOpen(false); }}
+                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl active:bg-white/10 text-left transition-all group/item"
+                  >
+                    <div className={cn('p-1.5 rounded-lg bg-white/5 group-hover/item:bg-white/10 transition-colors', item.color)}>
+                      {item.icon}
+                    </div>
+                    <span className="text-xs font-semibold text-white/70 group-hover/item:text-white transition-colors whitespace-nowrap">
+                      {item.label}
+                    </span>
+                  </motion.button>
+                ))}
+              </motion.div>
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Help panel (fixed, right-center) ────────────────────── */}
+      <AnimatePresence>
+        {showHelp && (
+          <div
+            className="fixed inset-0 z-[500]"
+            onClick={() => setShowHelp(false)}
+          >
+            <div
+              className="absolute right-16 top-1/2 -translate-y-1/2"
+              onClick={e => e.stopPropagation()}
+            >
+              <motion.div
+                initial={{ opacity: 0, x: 12, scale: 0.95 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: 12, scale: 0.95 }}
+                className="w-64 glass rounded-3xl p-5 shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10"
+              >
+                <div className="space-y-4">
+                  {[
+                    { icon: <MousePointer size={14} />, color: 'bg-blue-500/20 text-blue-400',    title: 'Navigation', desc: 'Klicken & Ziehen zum Bewegen' },
+                    { icon: <Sparkles     size={14} />, color: 'bg-purple-500/20 text-purple-400', title: 'Zoom',       desc: 'Mausrad / Pinch zum Vergrößern' },
+                    { icon: <Move         size={14} />, color: 'bg-emerald-500/20 text-emerald-400', title: 'Nodes',    desc: 'Header ziehen zum Bewegen' },
+                  ].map(({ icon, color, title, desc }) => (
+                    <div key={title} className="flex items-center gap-3">
+                      <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', color)}>{icon}</div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-white uppercase tracking-wider">{title}</span>
+                        <span className="text-[11px] text-white/60">{desc}</span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="h-[1px] bg-white/5" />
+                  <p className="text-[10px] text-white/30 italic text-center leading-tight">
+                    Mausrad über Nodes steuert nur die Listen innerhalb der Box.
+                  </p>
+                </div>
+              </motion.div>
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Settings Modal ───────────────────────────────────────── */}
+      <AnimatePresence>
+        {showSettings && (
+          <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass w-full max-w-[480px] rounded-3xl overflow-hidden shadow-2xl border border-white/10 max-h-[90dvh] flex flex-col"
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/[0.02] shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center">
+                    <Settings size={16} className="text-white/60" />
+                  </div>
+                  <h2 className="text-base font-bold">Einstellungen</h2>
+                </div>
+                <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-white/10 rounded-xl transition-colors text-white/40 hover:text-white">
+                  <Plus size={16} className="rotate-45" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-6 overflow-y-auto flex-1">
+                {/* JTL Version */}
+                <section className="space-y-3">
+                  <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest">JTL Wawi Version</label>
+                  <div className="relative">
+                    <select value={selectedVersion} onChange={e => setSelectedVersion(e.target.value)}
+                      className="w-full appearance-none px-4 py-3 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white focus:outline-none focus:border-blue-500/50">
+                      <option value="">Standard (schema.json)</option>
+                      {availableVersions.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+                  </div>
+                  <p className="text-[10px] text-white/30 italic">Die Änderung der Version lädt das entsprechende Datenbankschema.</p>
+                </section>
+
+                {/* MSSQL Connection */}
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest">MSSQL Verbindung</label>
+                    <span className="flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 font-bold border border-violet-500/20">
+                      <Lock size={9} />
+                      {isSecureContext() ? 'AES-256-GCM' : 'XOR-Obfuskierung'}
+                    </span>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">NUR BROWSER</span>
+                  </div>
+
+                  {!isSecureContext() && (
+                    <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                      <span className="text-amber-400 mt-0.5 shrink-0">⚠️</span>
+                      <p className="text-[10px] text-amber-300/80 leading-relaxed">
+                        <strong className="text-amber-300">Kein HTTPS erkannt.</strong>{' '}
+                        Zugangsdaten werden mit XOR verschleiert. Bitte HTTPS in Coolify aktivieren.
+                      </p>
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-white/30 italic">Zugangsdaten werden verschlüsselt im Browser gespeichert und verlassen niemals den Browser.</p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'DB_HOST', key: 'host', placeholder: '192.168.1.100', type: 'text' },
+                      { label: 'DB_PORT', key: 'port', placeholder: '1433',          type: 'text' },
+                    ].map(({ label, key, placeholder, type }) => (
+                      <div key={key} className="space-y-1.5">
+                        <label className="text-[10px] text-white/40 font-semibold uppercase tracking-widest">{label}</label>
+                        <input type={type} placeholder={placeholder} value={dbConfigDraft[key]}
+                          onChange={e => setDbConfigDraft(p => ({ ...p, [key]: e.target.value }))}
+                          className="w-full px-3 py-2.5 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors" />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-white/40 font-semibold uppercase tracking-widest">DB_INSTANCE <span className="normal-case text-white/20">(optional)</span></label>
+                      <input type="text" placeholder="SQLS" value={dbConfigDraft.instance}
+                        onChange={e => setDbConfigDraft(p => ({ ...p, instance: e.target.value }))}
+                        className="w-full px-3 py-2.5 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-white/40 font-semibold uppercase tracking-widest">DB_NAME</label>
+                      <input type="text" placeholder="eazybusiness" value={dbConfigDraft.database}
+                        onChange={e => setDbConfigDraft(p => ({ ...p, database: e.target.value }))}
+                        className="w-full px-3 py-2.5 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-white/40 font-semibold uppercase tracking-widest">DB_USER</label>
+                      <input type="text" placeholder="sa" value={dbConfigDraft.user}
+                        onChange={e => setDbConfigDraft(p => ({ ...p, user: e.target.value }))}
+                        className="w-full px-3 py-2.5 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-white/40 font-semibold uppercase tracking-widest">DB_PASS</label>
+                      <div className="relative">
+                        <input type={showPassword ? 'text' : 'password'} placeholder="••••••••" value={dbConfigDraft.password}
+                          onChange={e => setDbConfigDraft(p => ({ ...p, password: e.target.value }))}
+                          className="w-full px-3 py-2.5 pr-10 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors" />
+                        <button type="button" onClick={() => setShowPassword(s => !s)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors">
+                          {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {connTestResult && (
+                    <div className={cn('flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold',
+                      connTestResult === 'ok' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20')}>
+                      {connTestResult === 'ok' ? <><CheckCircle2 size={14} /> Verbindung erfolgreich!</> : <><XCircle size={14} /> Verbindung fehlgeschlagen.</>}
+                    </div>
+                  )}
+
+                  <button onClick={testConnection} disabled={testingConn || !dbConfigDraft.host || !dbConfigDraft.user}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-white/60 hover:text-white transition-all border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed">
+                    {testingConn ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                    Verbindung testen
+                  </button>
+                </section>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-white/10 bg-white/[0.02] shrink-0 flex items-center justify-end gap-3">
+                <button onClick={() => setShowSettings(false)}
+                  className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-white/40 hover:text-white transition-all border border-white/10">
+                  Abbrechen
+                </button>
+                <button onClick={applySettings}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white transition-all shadow-lg shadow-blue-600/20">
+                  Speichern
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Workflows Modal ──────────────────────────────────────── */}
+      <AnimatePresence>
+        {showWorkflowsModal && (
+          <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass w-full max-w-[520px] rounded-3xl overflow-hidden shadow-2xl border border-white/10 max-h-[80dvh] flex flex-col"
+            >
+              <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/[0.02] shrink-0">
+                <h2 className="text-base font-bold">Gespeicherte Workflows</h2>
+                <button onClick={() => setShowWorkflowsModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-colors text-white/40 hover:text-white">
+                  <Plus size={16} className="rotate-45" />
+                </button>
+              </div>
+              <div className="p-6 space-y-3 overflow-y-auto flex-1">
+                {workflows.length === 0 ? (
+                  <p className="text-sm text-center text-white/30 py-10 italic">Keine gespeicherten Workflows vorhanden.</p>
+                ) : (
+                  workflows.map(wf => (
+                    <div key={wf.id} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors">
+                      <div>
+                        <div className="font-bold text-sm text-white/90">{wf.name}</div>
+                        <div className="text-[10px] text-white/30 mt-0.5">{new Date(wf.updatedAt).toLocaleString()}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => loadWorkflow(wf)} className="px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg text-xs font-bold hover:bg-blue-500/30 transition-colors">Öffnen</button>
+                        <button onClick={() => deleteWorkflow(wf.id)} className="p-1.5 text-red-400/50 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"><Trash2 size={15} /></button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ── Community Hub Modal ──────────────────────────────────── */}
       <AnimatePresence>
