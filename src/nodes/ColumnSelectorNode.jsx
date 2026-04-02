@@ -85,9 +85,9 @@ export const ColumnSelectorNode = memo(({ id, data }) => {
                       >
                         <Info size={10} className="text-white/20 group-hover/info:text-emerald-400 transition-colors" />
                       </button>
-                      <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-gray-900 border border-white/10 rounded shadow-xl opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity z-[100] text-[10px] text-white/80 leading-relaxed backdrop-blur-md shadow-black">
+                      <div className="absolute top-full right-0 mt-1.5 w-48 p-2 bg-gray-900 border border-white/10 rounded shadow-xl opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity z-[9999] text-[10px] text-white/80 leading-relaxed backdrop-blur-md shadow-black">
+                        <div className="absolute bottom-full right-2 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900" />
                         {col.description || 'Keine Beschreibung verfügbar'}
-                        <div className="absolute top-full right-2 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900" />
                       </div>
                     </div>
                   </div>
