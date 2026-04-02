@@ -14,7 +14,8 @@ import {
   Database, Play, Code, Layers, Settings, ChevronUp, ChevronDown,
   Plus, GitMerge, Filter, ListOrdered, Save, FolderOpen, FilePlus,
   Trash2, Library, ListChecks, Sparkles, HelpCircle, MousePointer,
-  Move, Globe, Loader2, Eye, EyeOff, CheckCircle2, XCircle, Lock
+  Move, Globe, Loader2, Eye, EyeOff, CheckCircle2, XCircle, Lock,
+  Menu, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from './lib/utils';
@@ -55,6 +56,8 @@ function App() {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [executionTime, setExecutionTime] = useState(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
+  const [menuOpen, setMenuOpen]   = useState(false);  // burger / mobile nav
+  const [nodesOpen, setNodesOpen] = useState(false);  // node-palette FAB
 
   // MSSQL connection config — encrypted in localStorage, decrypted async on mount
   const [dbConfig, setDbConfig] = useState({ ...EMPTY_CONFIG });
@@ -327,6 +330,18 @@ function App() {
     setShowSettings(false);
   };
 
+  // ── Node palette items ─────────────────────────────────────────────────
+  const NODE_ITEMS = [
+    { type: 'tableNode',     icon: <Database   size={18} />,                   label: 'Tabelle',       color: 'text-blue-400'    },
+    { type: 'joinNode',      icon: <GitMerge   size={18} />,                   label: 'Verknüpfung',   color: 'text-purple-400'  },
+    { type: 'whereNode',     icon: <Filter     size={18} />,                   label: 'Filter',        color: 'text-amber-400'   },
+    { type: 'orderByNode',   icon: <ListOrdered size={18} />,                  label: 'Sortierung',    color: 'text-emerald-400' },
+    { type: 'columnSelector',icon: <ListChecks size={18} />,                   label: 'Spaltenauswahl',color: 'text-emerald-500' },
+    { type: 'groupByNode',   icon: <Layers     size={18} className="rotate-90" />, label: 'Gruppierung', color: 'text-rose-400' },
+    { type: 'distinctNode',  icon: <Layers     size={18} />,                   label: 'Eindeutig',     color: 'text-amber-500'   },
+    { type: 'formatterNode', icon: <Sparkles   size={18} />,                   label: 'Formatierung',  color: 'text-pink-400'    },
+  ];
+
   // ─────────────────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────────────────
@@ -346,45 +361,56 @@ function App() {
             onNodeMouseLeave={() => setCanZoom(true)}
             nodeTypes={nodeTypes}
             zoomOnScroll={canZoom}
+            defaultViewport={{ x: 0, y: 0, zoom: 0.7 }}
             fitView
+            fitViewOptions={{ padding: 1.5 }}
           >
             <Background color="#1a1a1a" gap={20} />
 
             {/* ── Top Navigation Bar ──────────────────────────────────── */}
-            <Panel position="top-center" className="mt-4">
-              <div className="glass px-6 py-3 rounded-full flex items-center justify-between w-[1060px] shadow-2xl border border-white/10 transition-all duration-500">
-                {/* Logo */}
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                    <Database size={14} className="text-white" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="font-bold text-sm tracking-tight text-white leading-tight">
-                      DB<span className="text-white/40 font-medium">FLOW</span>
-                    </span>
-                    {currentWorkflowName && (
-                      <span className="text-[10px] text-blue-400 font-medium">{currentWorkflowName}</span>
-                    )}
-                  </div>
-                </div>
+            <Panel position="top-center" className="mt-3 w-[calc(100vw-1.5rem)] max-w-[1060px]">
 
-                <div className="flex items-center gap-3">
-                  {/* Library dropdown */}
+              {/* shared logo block */}
+              {(() => {
+                const Logo = () => (
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0">
+                      <Database size={14} className="text-white" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-bold text-sm tracking-tight text-white leading-tight">
+                        DB<span className="text-white/40 font-medium">FLOW</span>
+                      </span>
+                      {currentWorkflowName && (
+                        <span className="text-[10px] text-blue-400 font-medium truncate max-w-[120px]">{currentWorkflowName}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+
+                const RunBtn = () => (
+                  <button
+                    onClick={executeQuery}
+                    disabled={loading || !generatedSql}
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-full text-[10px] font-black tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {loading ? <Loader2 size={12} className="animate-spin" /> : <Play size={10} className="fill-current" />}
+                    {loading ? 'RUNNING' : 'RUN'}
+                  </button>
+                );
+
+                const LibraryDropdown = ({ closeParent }) => (
                   <div className="relative">
                     <button
                       onClick={() => setShowLibrary(!showLibrary)}
                       className={cn(
                         'flex items-center gap-2 text-xs font-bold px-4 py-1.5 rounded-full transition-all border',
-                        showLibrary
-                          ? 'bg-white/10 border-white/20 text-white'
-                          : 'border-transparent text-white/60 hover:text-white'
+                        showLibrary ? 'bg-white/10 border-white/20 text-white' : 'border-transparent text-white/60 hover:text-white'
                       )}
                     >
-                      <Library size={14} />
-                      Bibliothek
+                      <Library size={14} /> Bibliothek
                       <ChevronDown size={12} className={cn('transition-transform', showLibrary && 'rotate-180')} />
                     </button>
-
                     <AnimatePresence>
                       {showLibrary && (
                         <>
@@ -395,81 +421,99 @@ function App() {
                             exit={{ opacity: 0, y: 10, scale: 0.95 }}
                             className="absolute top-full mt-3 left-0 w-56 glass rounded-2xl p-2 shadow-2xl border border-white/10 z-20 flex flex-col gap-1"
                           >
-                            <button
-                              onClick={() => { newWorkflow(); setShowLibrary(false); }}
-                              className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/5 text-xs font-semibold text-white/60 hover:text-white transition-all text-left group/btn"
-                            >
-                              <div className="p-2 bg-blue-500/10 rounded-lg group-hover/btn:bg-blue-500/20 transition-colors text-blue-400">
-                                <FilePlus size={14} />
-                              </div>
-                              Neu erstellen
-                            </button>
-                            <button
-                              onClick={() => { setShowWorkflowsModal(true); setShowLibrary(false); }}
-                              className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/5 text-xs font-semibold text-white/60 hover:text-white transition-all text-left group/btn"
-                            >
-                              <div className="p-2 bg-purple-500/10 rounded-lg group-hover/btn:bg-purple-500/20 transition-colors text-purple-400">
-                                <FolderOpen size={14} />
-                              </div>
-                              Workflows öffnen
-                            </button>
-                            <div className="h-[1px] bg-white/5 my-1" />
-                            <button
-                              onClick={() => { saveWorkflow(); setShowLibrary(false); }}
-                              className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/5 text-xs font-semibold text-white/60 hover:text-white transition-all text-left group/btn"
-                            >
-                              <div className="p-2 bg-emerald-500/10 rounded-lg group-hover/btn:bg-emerald-500/20 transition-colors text-emerald-400">
-                                <Save size={14} />
-                              </div>
-                              Speichern
-                            </button>
+                            {[
+                              { icon: <FilePlus size={14} />, label: 'Neu erstellen',      color: 'bg-blue-500/10 group-hover/btn:bg-blue-500/20 text-blue-400',     action: () => { newWorkflow(); setShowLibrary(false); closeParent?.(); } },
+                              { icon: <FolderOpen size={14} />, label: 'Workflows öffnen', color: 'bg-purple-500/10 group-hover/btn:bg-purple-500/20 text-purple-400', action: () => { setShowWorkflowsModal(true); setShowLibrary(false); closeParent?.(); } },
+                              { icon: <Save size={14} />, label: 'Speichern',              color: 'bg-emerald-500/10 group-hover/btn:bg-emerald-500/20 text-emerald-400', action: () => { saveWorkflow(); setShowLibrary(false); closeParent?.(); }, dividerBefore: true },
+                            ].map(({ icon, label, color, action, dividerBefore }) => (
+                              <React.Fragment key={label}>
+                                {dividerBefore && <div className="h-[1px] bg-white/5 my-1" />}
+                                <button onClick={action} className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/5 text-xs font-semibold text-white/60 hover:text-white transition-all text-left group/btn">
+                                  <div className={cn('p-2 rounded-lg transition-colors', color)}>{icon}</div>
+                                  {label}
+                                </button>
+                              </React.Fragment>
+                            ))}
                           </motion.div>
                         </>
                       )}
                     </AnimatePresence>
                   </div>
+                );
 
-                  <div className="h-4 w-[1px] bg-white/10" />
+                return (
+                  <>
+                    {/* ── Desktop bar (md+) ─────────────────────────────── */}
+                    <div className="glass px-6 py-3 rounded-full hidden md:flex items-center justify-between w-full shadow-2xl border border-white/10">
+                      <Logo />
+                      <div className="flex items-center gap-3">
+                        <LibraryDropdown />
+                        <div className="h-4 w-[1px] bg-white/10" />
+                        <button onClick={() => setShowHub(true)} className="flex items-center gap-2 text-xs font-bold px-4 py-1.5 rounded-full border border-transparent text-white/60 hover:text-white hover:bg-white/5 transition-all">
+                          <Globe size={14} className="text-blue-400" /> Community
+                        </button>
+                        <div className="h-4 w-[1px] bg-white/10" />
+                        <button
+                          onClick={() => { setDbConfigDraft({ ...dbConfig }); setConnTestResult(null); setShowSettings(true); }}
+                          className="flex items-center gap-2 text-[10px] font-bold text-white/40 hover:text-white transition-colors px-3 py-1.5 rounded-full hover:bg-white/5"
+                        >
+                          <Settings size={14} /> SETTINGS
+                        </button>
+                        <div className="h-4 w-[1px] bg-white/10" />
+                        <RunBtn />
+                      </div>
+                    </div>
 
-                  {/* Community Hub button */}
-                  <button
-                    onClick={() => setShowHub(true)}
-                    className="flex items-center gap-2 text-xs font-bold px-4 py-1.5 rounded-full border border-transparent text-white/60 hover:text-white hover:bg-white/5 transition-all"
-                  >
-                    <Globe size={14} className="text-blue-400" />
-                    Community
-                  </button>
+                    {/* ── Mobile bar (< md) ─────────────────────────────── */}
+                    <div className="md:hidden">
+                      <div className="glass px-4 py-2.5 rounded-2xl flex items-center justify-between w-full shadow-2xl border border-white/10">
+                        <Logo />
+                        <div className="flex items-center gap-2">
+                          <RunBtn />
+                          <button
+                            onClick={() => setMenuOpen(o => !o)}
+                            className="w-9 h-9 flex items-center justify-center rounded-xl glass-hover border border-white/10 text-white/60 hover:text-white transition-all"
+                          >
+                            {menuOpen ? <X size={18} /> : <Menu size={18} />}
+                          </button>
+                        </div>
+                      </div>
 
-                  <div className="h-4 w-[1px] bg-white/10" />
-
-                  {/* Settings */}
-                  <button
-                    onClick={() => {
-                      setDbConfigDraft({ ...dbConfig });
-                      setConnTestResult(null);
-                      setShowSettings(true);
-                    }}
-                    className="flex items-center gap-2 text-[10px] font-bold text-white/40 hover:text-white transition-colors px-3 py-1.5 rounded-full hover:bg-white/5"
-                  >
-                    <Settings size={14} />
-                    SETTINGS
-                  </button>
-
-                  <div className="h-4 w-[1px] bg-white/10" />
-
-                  {/* Run */}
-                  <button
-                    onClick={executeQuery}
-                    disabled={loading || !generatedSql}
-                    className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-full text-[10px] font-black tracking-widest flex items-center gap-2 transition-all shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {loading
-                      ? <Loader2 size={12} className="animate-spin" />
-                      : <Play size={10} className="fill-current" />}
-                    {loading ? 'RUNNING' : 'RUN'}
-                  </button>
-                </div>
-              </div>
+                      {/* Burger dropdown */}
+                      <AnimatePresence>
+                        {menuOpen && (
+                          <>
+                            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                            <motion.div
+                              initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                              className="mt-2 glass rounded-2xl p-3 shadow-2xl border border-white/10 z-20 flex flex-col gap-1"
+                            >
+                              <LibraryDropdown closeParent={() => setMenuOpen(false)} />
+                              <div className="h-[1px] bg-white/5 my-1" />
+                              <button
+                                onClick={() => { setShowHub(true); setMenuOpen(false); }}
+                                className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/5 text-xs font-semibold text-white/60 hover:text-white transition-all text-left"
+                              >
+                                <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400"><Globe size={14} /></div>
+                                Community Hub
+                              </button>
+                              <button
+                                onClick={() => { setDbConfigDraft({ ...dbConfig }); setConnTestResult(null); setShowSettings(true); setMenuOpen(false); }}
+                                className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/5 text-xs font-semibold text-white/60 hover:text-white transition-all text-left"
+                              >
+                                <div className="p-2 bg-white/5 rounded-lg text-white/40"><Settings size={14} /></div>
+                                Einstellungen
+                              </button>
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </>
+                );
+              })()}
             </Panel>
 
             {/* ── Settings Modal ──────────────────────────────────────── */}
@@ -480,7 +524,7 @@ function App() {
                     initial={{ scale: 0.9, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.9, opacity: 0 }}
-                    className="glass w-[480px] rounded-3xl overflow-hidden shadow-2xl border border-white/10 max-h-[90vh] flex flex-col"
+                    className="glass w-[calc(100vw-2rem)] max-w-[480px] rounded-3xl overflow-hidden shadow-2xl border border-white/10 max-h-[90vh] flex flex-col"
                   >
                     {/* Header */}
                     <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/[0.02] shrink-0">
@@ -690,7 +734,7 @@ function App() {
                     initial={{ scale: 0.9, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.9, opacity: 0 }}
-                    className="glass w-[520px] rounded-3xl overflow-hidden shadow-2xl border border-white/10 max-h-[80vh] flex flex-col"
+                    className="glass w-[calc(100vw-2rem)] max-w-[520px] rounded-3xl overflow-hidden shadow-2xl border border-white/10 max-h-[80vh] flex flex-col"
                   >
                     <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/[0.02] shrink-0">
                       <h2 className="text-base font-bold">Gespeicherte Workflows</h2>
@@ -738,32 +782,56 @@ function App() {
               )}
             </AnimatePresence>
 
-            {/* ── Left Sidebar ────────────────────────────────────────── */}
-            <Panel position="left" className="ml-4 top-1/2 -translate-y-1/2">
-              <div className="glass p-2 rounded-2xl flex flex-col gap-2 shadow-2xl border border-white/10">
-                {[
-                  { type: 'tableNode', icon: <Database size={18} />, label: 'Tabelle', color: 'text-blue-400' },
-                  { type: 'joinNode', icon: <GitMerge size={18} />, label: 'Verknüpfung', color: 'text-purple-400' },
-                  { type: 'whereNode', icon: <Filter size={18} />, label: 'Filter', color: 'text-amber-400' },
-                  { type: 'orderByNode', icon: <ListOrdered size={18} />, label: 'Sortierung', color: 'text-emerald-400' },
-                  { type: 'columnSelector', icon: <ListChecks size={18} />, label: 'Spaltenauswahl', color: 'text-emerald-500' },
-                  { type: 'groupByNode', icon: <Layers size={18} className="rotate-90" />, label: 'Gruppierung', color: 'text-rose-400' },
-                  { type: 'distinctNode', icon: <Layers size={18} />, label: 'Eindeutig', color: 'text-amber-500' },
-                  { type: 'formatterNode', icon: <Sparkles size={18} />, label: 'Formatierung', color: 'text-pink-400' },
-                ].map((item) => (
-                  <button
-                    key={item.type}
-                    onClick={() => addNode(item.type)}
-                    className="w-12 h-12 rounded-xl flex items-center justify-center glass-hover transition-all group relative"
-                  >
-                    <div className={cn('transition-transform group-hover:scale-110', item.color)}>
-                      {item.icon}
-                    </div>
-                    <span className="absolute left-16 bg-black/80 text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-white/10 uppercase tracking-widest z-50">
-                      {item.label}
-                    </span>
-                  </button>
-                ))}
+            {/* ── Node Palette FAB ─────────────────────────────────────── */}
+            <Panel position="bottom-left" className="ml-4 mb-16">
+              <div className="relative flex flex-col items-start gap-0">
+
+                {/* Expanded palette */}
+                <AnimatePresence>
+                  {nodesOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setNodesOpen(false)} />
+                      <motion.div
+                        initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 12, scale: 0.95 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                        className="absolute bottom-14 left-0 glass rounded-2xl p-2 shadow-2xl border border-white/10 z-20 flex flex-col gap-1 min-w-[180px]"
+                      >
+                        {NODE_ITEMS.map((item, idx) => (
+                          <motion.button
+                            key={item.type}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.03 }}
+                            onClick={() => { addNode(item.type); setNodesOpen(false); }}
+                            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-white/8 text-left transition-all group/item"
+                          >
+                            <div className={cn('p-1.5 rounded-lg bg-white/5 group-hover/item:bg-white/10 transition-colors', item.color)}>
+                              {item.icon}
+                            </div>
+                            <span className="text-xs font-semibold text-white/70 group-hover/item:text-white transition-colors whitespace-nowrap">
+                              {item.label}
+                            </span>
+                          </motion.button>
+                        ))}
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+
+                {/* FAB toggle button */}
+                <button
+                  onClick={() => setNodesOpen(o => !o)}
+                  className={cn(
+                    'w-11 h-11 rounded-2xl flex items-center justify-center shadow-2xl border transition-all duration-200',
+                    nodesOpen
+                      ? 'bg-blue-600 border-blue-500 text-white rotate-45'
+                      : 'glass border-white/15 text-white/70 hover:text-white hover:border-white/30'
+                  )}
+                >
+                  <Plus size={20} className="transition-transform duration-200" />
+                </button>
               </div>
             </Panel>
 
@@ -841,7 +909,7 @@ function App() {
                 </div>
 
                 {/* Panel content */}
-                <div className="flex-1 overflow-hidden grid grid-cols-2 divide-x divide-white/5 min-h-0">
+                <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/5 min-h-0">
                   {/* SQL preview */}
                   <div className="p-6 bg-black/20 overflow-auto font-mono text-xs">
                     <pre className="text-blue-200/80 leading-relaxed whitespace-pre-wrap">
