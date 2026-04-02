@@ -1,0 +1,44 @@
+// JTL Workflow Hub — Prisma schema
+// Database: PostgreSQL
+// Set DATABASE_URL in your .env file before running `npm run db:push`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// A published JTL workflow that other users can discover and import.
+model Flow {
+  id          String   @id @default(cuid())
+
+  /// Human-readable workflow title (max 120 chars)
+  title       String
+
+  /// Optional long-form description of what the workflow does
+  description String   @default("")
+
+  /// Semicolon-separated list of tags, e.g. "sales;orders;customers"
+  tags        String   @default("")
+
+  /// Full ReactFlow state: { nodes: [...], edges: [...] }
+  flowData    Json
+
+  /// Display name of the author
+  author      String   @default("Anonymous")
+
+  /// How many times this flow has been downloaded / imported
+  downloads   Int      @default(0)
+
+  /// Cached node count for display without parsing flowData
+  nodeCount   Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([downloads])
+  @@index([createdAt])
+}

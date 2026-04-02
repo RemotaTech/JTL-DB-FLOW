@@ -1,0 +1,108 @@
+{
+  "tables": [
+    {
+      "name": "dbo.tArtikel",
+      "columns": [
+        {"name": "kArtikel", "type": "INT", "nullable": false, "description": "Schlüssel der Tabelle"},
+        {"name": "cArtNr", "type": "NVARCHAR(100)", "nullable": false, "description": "Die Artikelnummer des Artikels."},
+        {"name": "fVKNetto", "type": "DECIMAL(25, 13)", "nullable": false, "description": ""},
+        {"name": "fUVP", "type": "DECIMAL(25, 13)", "nullable": false, "description": "Enthält die Unverbindliche Preisempfehlung des Herstellers (UVP)."},
+        {"name": "cAnmerkung", "type": "NVARCHAR(MAX)", "nullable": true, "description": "Enthält interne Produktnotizen."},
+        {"name": "fGewicht", "type": "DECIMAL(25, 13)", "nullable": false, "description": "Enthält das Gewicht des Artikels"},
+        {"name": "fEKNetto", "type": "DECIMAL(25, 13)", "nullable": false, "description": "Gleitender Durchschnittspreis (GLD)."},
+        {"name": "kSteuerklasse", "type": "INT", "nullable": false, "description": "Fremdschlüssel auf die Tabelle dbo.tSteuerklasse."},
+        {"name": "kVaterArtikel", "type": "INT", "nullable": false, "description": "Referenz auf den Vaterartikel (Variationen)."},
+        {"name": "kHersteller", "type": "INT", "nullable": true, "description": "Fremdschlüssel auf die Tabelle dbo.tHersteller."}
+      ]
+    },
+    {
+      "name": "Verkauf.tAuftrag",
+      "columns": [
+        {"name": "kAuftrag", "type": "INT", "nullable": false, "description": "Interne Nummer des Verkaufsvorgangs."},
+        {"name": "kKunde", "type": "INT", "nullable": true, "description": "Interne Nummer des Kunden."},
+        {"name": "cAuftragsNr", "type": "NVARCHAR(50)", "nullable": false, "description": "Enthält die Nummer des Vorgangs."},
+        {"name": "dErstellt", "type": "DATETIME", "nullable": false, "description": "Erstelldatum des Vorgangs."},
+        {"name": "cWaehrung", "type": "CHAR(3)", "nullable": true, "description": "Währung des Auftrags."},
+        {"name": "fFaktor", "type": "DECIMAL(25, 13)", "nullable": false, "description": "Umrechnungsfaktor der Währung."},
+        {"name": "fSkonto", "type": "DECIMAL(25, 13)", "nullable": true, "description": "Wert des Skonto."},
+        {"name": "nStorno", "type": "BIT", "nullable": false, "description": "Storno-Status des Auftrags."}
+      ]
+    },
+    {
+      "name": "Verkauf.tAuftragPosition",
+      "columns": [
+        {"name": "kAuftragPosition", "type": "INT", "nullable": false, "description": "Primärschlüssel der Tabelle."},
+        {"name": "kArtikel", "type": "INT", "nullable": true, "description": "Fremdschlüssel auf dbo.tArtikel."},
+        {"name": "kAuftrag", "type": "INT", "nullable": false, "description": "Fremdschlüssel auf Verkauf.tAuftrag."},
+        {"name": "cArtNr", "type": "NVARCHAR(100)", "nullable": true, "description": "Artikelnummer der Position."},
+        {"name": "fAnzahl", "type": "DECIMAL(25, 13)", "nullable": false, "description": "Menge der Position."},
+        {"name": "fVkNetto", "type": "DECIMAL(25, 13)", "nullable": false, "description": "Netto Preis der Position."},
+        {"name": "fRabatt", "type": "DECIMAL(25, 13)", "nullable": false, "description": "Prozentwert des Rabatts."}
+      ]
+    },
+    {
+      "name": "dbo.tkunde",
+      "columns": [
+        {"name": "kKunde", "type": "INT", "nullable": false, "description": "Einzigartiger interner Primärschlüssel."},
+        {"name": "cKundenNr", "type": "NVARCHAR(30)", "nullable": true, "description": "Optionale Kundennummer."},
+        {"name": "dErstellt", "type": "DATETIME", "nullable": true, "description": "Erstelldatum des Kunden."},
+        {"name": "fRabatt", "type": "DECIMAL(25, 13)", "nullable": false, "description": "Prozentualer Rabatt für Kunden."},
+        {"name": "kKundenGruppe", "type": "INT", "nullable": true, "description": "Referenzkey auf eine Kundengruppe."}
+      ]
+    },
+    {
+      "name": "Rechnung.tRechnung",
+      "columns": [
+        {"name": "kRechnung", "type": "INT", "nullable": false, "description": "Primärschlüssel der Rechnung."},
+        {"name": "kKunde", "type": "INT", "nullable": true, "description": "Referenz auf den Kunden."},
+        {"name": "cRechnungsnr", "type": "NVARCHAR(50)", "nullable": false, "description": "Rechnungsnummer."},
+        {"name": "dErstellt", "type": "DATETIME", "nullable": false, "description": "Erstelldatum."},
+        {"name": "fWaehrungsfaktor", "type": "DECIMAL(25, 13)", "nullable": false, "description": "Währungsfaktor."},
+        {"name": "nStorno", "type": "BIT", "nullable": false, "description": "Storno-Status."}
+      ]
+    },
+    {
+      "name": "dbo.tWarenLagerEingang",
+      "columns": [
+        {"name": "kWarenLagerEingang", "type": "INT", "nullable": false, "description": "Primärschlüssel der Tabelle."},
+        {"name": "kArtikel", "type": "INT", "nullable": false, "description": "Verweis auf dbo.tArtikel."},
+        {"name": "fAnzahl", "type": "DECIMAL(25, 13)", "nullable": false, "description": "Eingangsmenge."},
+        {"name": "fEKEinzel", "type": "DECIMAL(25, 13)", "nullable": false, "description": "Einkaufspreis des Artikels."},
+        {"name": "dGeliefertAM", "type": "DATETIME", "nullable": true, "description": "Lieferdatum."}
+      ]
+    },
+    {
+      "name": "dbo.tlager",
+      "columns": [
+        {"name": "kLager", "type": "INT", "nullable": false, "description": "Primärschlüssel des Lagers."},
+        {"name": "cName", "type": "NVARCHAR(255)", "nullable": true, "description": "Name des Lagers."},
+        {"name": "cBeschreibung", "type": "NVARCHAR(255)", "nullable": true, "description": "Beschreibung des Lagers."}
+      ]
+    },
+    {
+      "name": "dbo.tkategorie",
+      "columns": [
+        {"name": "kKategorie", "type": "INT", "nullable": false, "description": "Primärschlüssel der Kategorie."},
+        {"name": "kOberKategorie", "type": "INT", "nullable": true, "description": "Verweis auf die Oberkategorie (Baumstruktur)."},
+        {"name": "nSort", "type": "INT", "nullable": true, "description": "Sortierungsreihenfolge."}
+      ]
+    },
+    {
+      "name": "dbo.tHersteller",
+      "columns": [
+        {"name": "kHersteller", "type": "INT", "nullable": false, "description": "Primärschlüssel des Herstellers."},
+        {"name": "cName", "type": "NVARCHAR(255)", "nullable": true, "description": "Name des Herstellers."},
+        {"name": "cHomepage", "type": "NVARCHAR(255)", "nullable": true, "description": "URL der Herstellerwebsite."}
+      ]
+    },
+    {
+      "name": "dbo.tZahlung",
+      "columns": [
+        {"name": "kZahlung", "type": "INT", "nullable": false, "description": "Primärschlüssel der Zahlung."},
+        {"name": "fBetrag", "type": "DECIMAL(25, 13)", "nullable": false, "description": "Betrag der Zahlung."},
+        {"name": "dDatum", "type": "DATETIME", "nullable": true, "description": "Datum der Zahlung."},
+        {"name": "kBestellung", "type": "INT", "nullable": true, "description": "Verweis auf die Bestellung (kBestellung/kAuftrag)."}
+      ]
+    }
+  ]
+}
