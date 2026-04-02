@@ -63,4 +63,5 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT',  shutdown);
 
 // Exported for tests
-export { app, buildMssqlConfig } from './bridge/app.js';
+export { buildMssqlConfig } from './bridge/app.js';
+export { app };
