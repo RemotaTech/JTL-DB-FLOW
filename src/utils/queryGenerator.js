@@ -81,14 +81,21 @@ export function generateSql(nodes, edges) {
       }
     } else if (node.type === 'whereNode') {
       if (node.data.condition) {
-        const parts = node.data.condition.split(' ');
-        if (parts.length >= 3) {
-          const col = formatId(parts[0]);
-          const op = parts[1];
-          const val = parts.slice(2).join(' ');
-          wheres.push(`${col} ${op} ${val}`);
-        } else {
+        // New format: condition string already contains bracketed identifiers
+        // (built by FilterNode with multi-condition support) — use as-is.
+        // Legacy format: bare "col op val" single condition — apply formatId.
+        if (node.data.condition.includes('[')) {
           wheres.push(node.data.condition);
+        } else {
+          const parts = node.data.condition.split(' ');
+          if (parts.length >= 3) {
+            const col = formatId(parts[0]);
+            const op  = parts[1];
+            const val = parts.slice(2).join(' ');
+            wheres.push(`${col} ${op} ${val}`);
+          } else {
+            wheres.push(node.data.condition);
+          }
         }
       }
     } else if (node.type === 'groupByNode') {
