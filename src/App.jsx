@@ -83,7 +83,7 @@ function App() {
   const saveWorkflow = () => {
     let name = currentWorkflowName;
     if (!name) {
-      name = prompt('Bitte geben Sie einen Namen für den Workflow ein:');
+      name = prompt('Bitte geben Sie einen Namen für den Flow ein:');
       if (!name) return;
     }
     const newWorkflow = {
@@ -104,7 +104,7 @@ function App() {
     setWorkflows(updatedWorkflows);
     localStorage.setItem('jtl_workflows', JSON.stringify(updatedWorkflows));
     setCurrentWorkflowName(name);
-    alert('Workflow gespeichert!');
+    alert('Flow gespeichert!');
   };
 
   const loadWorkflow = (wf) => {
@@ -115,7 +115,7 @@ function App() {
   };
 
   const deleteWorkflow = (id) => {
-    if (confirm('Möchten Sie diesen Workflow wirklich löschen?')) {
+    if (confirm('Möchten Sie diesen Flow wirklich löschen?')) {
       const updated = workflows.filter(w => w.id !== id);
       setWorkflows(updated);
       localStorage.setItem('jtl_workflows', JSON.stringify(updated));
@@ -126,7 +126,7 @@ function App() {
   };
 
   const newWorkflow = () => {
-    if (confirm('Möchten Sie wirklich einen neuen Workflow beginnen? Ungespeicherte Änderungen gehen verloren.')) {
+    if (confirm('Möchten Sie wirklich einen neuen Flow beginnen? Ungespeicherte Änderungen gehen verloren.')) {
       setNodes([]);
       setEdges([]);
       setCurrentWorkflowName('');
@@ -419,7 +419,7 @@ function App() {
                             </button>
                             <button onClick={() => { setShowWorkflowsModal(true); setShowLibrary(false); }} className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/5 text-xs font-semibold text-white/60 hover:text-white transition-all text-left group/btn">
                               <div className="p-2 bg-purple-500/10 group-hover/btn:bg-purple-500/20 rounded-lg transition-colors text-purple-400"><FolderOpen size={14} /></div>
-                              Workflows öffnen
+                              Flows öffnen
                             </button>
                             <div className="h-[1px] bg-white/5 my-1" />
                             <button onClick={() => { saveWorkflow(); setShowLibrary(false); }} className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-white/5 text-xs font-semibold text-white/60 hover:text-white transition-all text-left group/btn">
@@ -565,7 +565,7 @@ function App() {
                   {/* SQL preview */}
                   <div className="p-6 bg-black/20 overflow-auto font-mono text-xs">
                     <pre className="text-blue-200/80 leading-relaxed whitespace-pre-wrap">
-                      {generatedSql || '-- Workflow erstellen, um SQL zu generieren'}
+                      {generatedSql || '-- Flow erstellen, um SQL zu generieren'}
                     </pre>
                   </div>
 
@@ -648,7 +648,7 @@ function App() {
               >
                 {[
                   { icon: <FilePlus size={14} />, label: 'Neu erstellen', color: 'bg-blue-500/10 text-blue-400', action: () => { newWorkflow(); setMenuOpen(false); } },
-                  { icon: <FolderOpen size={14} />, label: 'Workflows öffnen', color: 'bg-purple-500/10 text-purple-400', action: () => { setShowWorkflowsModal(true); setMenuOpen(false); } },
+                  { icon: <FolderOpen size={14} />, label: 'Flows öffnen', color: 'bg-purple-500/10 text-purple-400', action: () => { setShowWorkflowsModal(true); setMenuOpen(false); } },
                   { icon: <Save size={14} />, label: 'Speichern', color: 'bg-emerald-500/10 text-emerald-400', action: () => { saveWorkflow(); setMenuOpen(false); }, divider: true },
                   { icon: <Globe size={14} />, label: 'Community Hub', color: 'bg-blue-500/10 text-blue-400', action: () => { setShowHub(true); setMenuOpen(false); }, divider: true },
                   { icon: <Settings size={14} />, label: 'Einstellungen', color: 'bg-white/5 text-white/50', action: () => { setDbConfigDraft({ ...dbConfig }); setConnTestResult(null); setShowSettings(true); setMenuOpen(false); } },
@@ -907,14 +907,14 @@ function App() {
               className="glass w-full max-w-[520px] rounded-3xl overflow-hidden shadow-2xl border border-white/10 max-h-[80dvh] flex flex-col"
             >
               <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/[0.02] shrink-0">
-                <h2 className="text-base font-bold">Gespeicherte Workflows</h2>
+                <h2 className="text-base font-bold">Gespeicherte Flows</h2>
                 <button onClick={() => setShowWorkflowsModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-colors text-white/40 hover:text-white">
                   <Plus size={16} className="rotate-45" />
                 </button>
               </div>
               <div className="p-6 space-y-3 overflow-y-auto flex-1">
                 {workflows.length === 0 ? (
-                  <p className="text-sm text-center text-white/30 py-10 italic">Keine gespeicherten Workflows vorhanden.</p>
+                  <p className="text-sm text-center text-white/30 py-10 italic">Keine gespeicherten Flows vorhanden.</p>
                 ) : (
                   workflows.map(wf => (
                     <div key={wf.id} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors">
@@ -944,7 +944,7 @@ function App() {
             currentEdges={edges}
             currentWorkflowName={currentWorkflowName}
             onImport={(flowData, name) => {
-              if (confirm(`Workflow "${name}" importieren? Ungespeicherte Änderungen gehen verloren.`)) {
+              if (confirm(`Flow "${name}" importieren? Ungespeicherte Änderungen gehen verloren.`)) {
                 setNodes(flowData.nodes || []);
                 setEdges(flowData.edges || []);
                 setCurrentWorkflowName(name);
