@@ -5,6 +5,10 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Force development so npm ci installs ALL deps (including vite, @vitejs/plugin-react, etc.)
+# Coolify injects NODE_ENV=production at build time which would skip devDependencies otherwise.
+ENV NODE_ENV=development
+
 COPY package*.json ./
 RUN npm ci --prefer-offline
 
@@ -14,10 +18,7 @@ COPY . .
 RUN npx prisma generate
 
 # Build the Vite frontend.
-# VITE_BRIDGE_URL is '' by default — bridge routes are served on the same
-# origin as the hub (hub-server.js mounts them in production).
-# Override with --build-arg VITE_BRIDGE_URL=https://your-bridge.example.com
-# only if you run the bridge on a separate host.
+# VITE_BRIDGE_URL is '' by default — bridge routes are on the same origin.
 ARG VITE_BRIDGE_URL=
 ENV VITE_BRIDGE_URL=${VITE_BRIDGE_URL}
 RUN npm run build
