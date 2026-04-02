@@ -13,7 +13,12 @@ RUN apk add --no-cache openssl
 ENV NODE_ENV=development
 
 COPY package*.json ./
-RUN npm ci --prefer-offline
+# Use `npm install` (not `npm ci`) so npm resolves platform-specific optional
+# binaries for the current OS/libc at build time.
+# Vite 8 uses Rolldown (native Rust binary) — the lock file generated on macOS
+# only contains darwin binaries; `npm ci` would therefore miss
+# @rolldown/binding-linux-x64-musl on Alpine (musl libc).
+RUN npm install --prefer-offline
 
 COPY . .
 
