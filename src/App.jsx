@@ -56,9 +56,9 @@ function App() {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [executionTime, setExecutionTime] = useState(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
-  const [menuOpen, setMenuOpen]   = useState(false);  // burger / mobile nav
+  const [menuOpen, setMenuOpen] = useState(false);  // burger / mobile nav
   const [nodesOpen, setNodesOpen] = useState(false);  // node-palette FAB
-  const [showHelp,  setShowHelp]  = useState(false);  // help tooltip (click-based)
+  const [showHelp, setShowHelp] = useState(false);  // help tooltip (click-based)
 
   // MSSQL connection config — encrypted in localStorage, decrypted async on mount
   const [dbConfig, setDbConfig] = useState({ ...EMPTY_CONFIG });
@@ -333,14 +333,14 @@ function App() {
 
   // ── Node palette items ─────────────────────────────────────────────────
   const NODE_ITEMS = [
-    { type: 'tableNode',     icon: <Database   size={18} />,                   label: 'Tabelle',       color: 'text-blue-400'    },
-    { type: 'joinNode',      icon: <GitMerge   size={18} />,                   label: 'Verknüpfung',   color: 'text-purple-400'  },
-    { type: 'whereNode',     icon: <Filter     size={18} />,                   label: 'Filter',        color: 'text-amber-400'   },
-    { type: 'orderByNode',   icon: <ListOrdered size={18} />,                  label: 'Sortierung',    color: 'text-emerald-400' },
-    { type: 'columnSelector',icon: <ListChecks size={18} />,                   label: 'Spaltenauswahl',color: 'text-emerald-500' },
-    { type: 'groupByNode',   icon: <Layers     size={18} className="rotate-90" />, label: 'Gruppierung', color: 'text-rose-400' },
-    { type: 'distinctNode',  icon: <Layers     size={18} />,                   label: 'Eindeutig',     color: 'text-amber-500'   },
-    { type: 'formatterNode', icon: <Sparkles   size={18} />,                   label: 'Formatierung',  color: 'text-pink-400'    },
+    { type: 'tableNode', icon: <Database size={18} />, label: 'Tabelle', color: 'text-blue-400' },
+    { type: 'joinNode', icon: <GitMerge size={18} />, label: 'Verknüpfung', color: 'text-purple-400' },
+    { type: 'whereNode', icon: <Filter size={18} />, label: 'Filter', color: 'text-amber-400' },
+    { type: 'orderByNode', icon: <ListOrdered size={18} />, label: 'Sortierung', color: 'text-emerald-400' },
+    { type: 'columnSelector', icon: <ListChecks size={18} />, label: 'Spaltenauswahl', color: 'text-emerald-500' },
+    { type: 'groupByNode', icon: <Layers size={18} className="rotate-90" />, label: 'Gruppierung', color: 'text-rose-400' },
+    { type: 'distinctNode', icon: <Layers size={18} />, label: 'Eindeutig', color: 'text-amber-500' },
+    { type: 'formatterNode', icon: <Sparkles size={18} />, label: 'Formatierung', color: 'text-pink-400' },
   ];
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -372,7 +372,7 @@ function App() {
             {/* NOTE: only the glass pill lives inside ReactFlow to avoid
                 stacking-context fights. Dropdowns & modals are rendered
                 outside ReactFlow as fixed overlays (see end of component). */}
-            <Panel position="top-center" className="mt-3" style={{ left: '50%', transform: 'translateX(-50%)', width: 'min(calc(100vw - 1.5rem), 1060px)' }}>
+            <Panel position="top-center" className="mt-3" style={{ left: '50%', transform: 'translateX(-50%)', width: 'min(calc(90vw - 1.5rem), 1060px)' }}>
 
               {/* ── Desktop bar (md+) ───────────────────────────────────── */}
               <div className="glass px-6 py-3 rounded-full hidden md:flex items-center justify-between shadow-2xl border border-white/10">
@@ -647,11 +647,11 @@ function App() {
                 className="glass rounded-2xl p-3 shadow-2xl border border-white/10 flex flex-col gap-1"
               >
                 {[
-                  { icon: <FilePlus size={14} />,   label: 'Neu erstellen',     color: 'bg-blue-500/10 text-blue-400',     action: () => { newWorkflow(); setMenuOpen(false); } },
-                  { icon: <FolderOpen size={14} />, label: 'Workflows öffnen',  color: 'bg-purple-500/10 text-purple-400', action: () => { setShowWorkflowsModal(true); setMenuOpen(false); } },
-                  { icon: <Save size={14} />,       label: 'Speichern',         color: 'bg-emerald-500/10 text-emerald-400', action: () => { saveWorkflow(); setMenuOpen(false); }, divider: true },
-                  { icon: <Globe size={14} />,      label: 'Community Hub',     color: 'bg-blue-500/10 text-blue-400',     action: () => { setShowHub(true); setMenuOpen(false); }, divider: true },
-                  { icon: <Settings size={14} />,   label: 'Einstellungen',     color: 'bg-white/5 text-white/50',         action: () => { setDbConfigDraft({ ...dbConfig }); setConnTestResult(null); setShowSettings(true); setMenuOpen(false); } },
+                  { icon: <FilePlus size={14} />, label: 'Neu erstellen', color: 'bg-blue-500/10 text-blue-400', action: () => { newWorkflow(); setMenuOpen(false); } },
+                  { icon: <FolderOpen size={14} />, label: 'Workflows öffnen', color: 'bg-purple-500/10 text-purple-400', action: () => { setShowWorkflowsModal(true); setMenuOpen(false); } },
+                  { icon: <Save size={14} />, label: 'Speichern', color: 'bg-emerald-500/10 text-emerald-400', action: () => { saveWorkflow(); setMenuOpen(false); }, divider: true },
+                  { icon: <Globe size={14} />, label: 'Community Hub', color: 'bg-blue-500/10 text-blue-400', action: () => { setShowHub(true); setMenuOpen(false); }, divider: true },
+                  { icon: <Settings size={14} />, label: 'Einstellungen', color: 'bg-white/5 text-white/50', action: () => { setDbConfigDraft({ ...dbConfig }); setConnTestResult(null); setShowSettings(true); setMenuOpen(false); } },
                 ].map(({ icon, label, color, action, divider }) => (
                   <React.Fragment key={label}>
                     {divider && <div className="h-[1px] bg-white/5 my-1" />}
@@ -730,9 +730,9 @@ function App() {
               >
                 <div className="space-y-4">
                   {[
-                    { icon: <MousePointer size={14} />, color: 'bg-blue-500/20 text-blue-400',    title: 'Navigation', desc: 'Klicken & Ziehen zum Bewegen' },
-                    { icon: <Sparkles     size={14} />, color: 'bg-purple-500/20 text-purple-400', title: 'Zoom',       desc: 'Mausrad / Pinch zum Vergrößern' },
-                    { icon: <Move         size={14} />, color: 'bg-emerald-500/20 text-emerald-400', title: 'Nodes',    desc: 'Header ziehen zum Bewegen' },
+                    { icon: <MousePointer size={14} />, color: 'bg-blue-500/20 text-blue-400', title: 'Navigation', desc: 'Klicken & Ziehen zum Bewegen' },
+                    { icon: <Sparkles size={14} />, color: 'bg-purple-500/20 text-purple-400', title: 'Zoom', desc: 'Mausrad / Pinch zum Vergrößern' },
+                    { icon: <Move size={14} />, color: 'bg-emerald-500/20 text-emerald-400', title: 'Nodes', desc: 'Header ziehen zum Bewegen' },
                   ].map(({ icon, color, title, desc }) => (
                     <div key={title} className="flex items-center gap-3">
                       <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', color)}>{icon}</div>
@@ -818,7 +818,7 @@ function App() {
                   <div className="grid grid-cols-2 gap-3">
                     {[
                       { label: 'DB_HOST', key: 'host', placeholder: '192.168.1.100', type: 'text' },
-                      { label: 'DB_PORT', key: 'port', placeholder: '1433',          type: 'text' },
+                      { label: 'DB_PORT', key: 'port', placeholder: '1433', type: 'text' },
                     ].map(({ label, key, placeholder, type }) => (
                       <div key={key} className="space-y-1.5">
                         <label className="text-[10px] text-white/40 font-semibold uppercase tracking-widest">{label}</label>
