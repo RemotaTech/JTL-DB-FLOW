@@ -1,90 +1,96 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Globe, Search, Download, Upload, Tag, X, Plus, ChevronDown,
-  Loader2, CheckCircle2, AlertCircle, Users, ArrowUpRight, RotateCcw
+  Search, Download, Upload, X, ChevronDown, Loader2, CheckCircle2,
+  AlertCircle, RotateCcw,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-// ─── Bot-check question pool ────────────────────────────────────────────────
+// ─── Bot-check question pool ───────────────────────────────────────────────
 
 const BOT_QUESTIONS = [
-  { q: 'Was ist 4 + 9?',   a: '13' },
-  { q: 'Was ist 15 − 7?',  a: '8'  },
-  { q: 'Was ist 6 × 3?',   a: '18' },
-  { q: 'Was ist 24 ÷ 4?',  a: '6'  },
-  { q: 'Was ist 11 + 8?',  a: '19' },
-  { q: 'Was ist 5 × 5?',   a: '25' },
+  { q: '4 + 9',   a: '13' },
+  { q: '15 − 7',  a: '8'  },
+  { q: '6 × 3',   a: '18' },
+  { q: '24 ÷ 4',  a: '6'  },
+  { q: '11 + 8',  a: '19' },
+  { q: '5 × 5',   a: '25' },
 ];
+const randomQuestion = () => BOT_QUESTIONS[Math.floor(Math.random() * BOT_QUESTIONS.length)];
 
-function randomQuestion() {
-  return BOT_QUESTIONS[Math.floor(Math.random() * BOT_QUESTIONS.length)];
-}
+// ─── Helpers ───────────────────────────────────────────────────────────────
 
-// ─── Tag pill ──────────────────────────────────────────────────────────────
+const fmtDate = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days < 1)  return 'heute';
+  if (days < 2)  return 'gestern';
+  if (days < 7)  return `vor ${days} Tagen`;
+  if (days < 30) return `vor ${Math.floor(days / 7)} Wochen`;
+  return d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' });
+};
 
-function TagPill({ tag, onClick, active }) {
+// ─── Tag pill (slim) ───────────────────────────────────────────────────────
+
+function Tag({ tag, onClick, active }) {
   return (
     <button
       onClick={() => onClick?.(tag)}
       className={cn(
-        'px-2.5 py-1 rounded-full text-[10px] font-bold transition-all border',
+        'px-2 py-0.5 rounded text-[10px] transition-colors',
         active
-          ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-          : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white/70'
+          ? 'bg-blue-500/20 text-blue-300'
+          : 'text-white/40 hover:text-white/70 hover:bg-white/5',
+        onClick && 'cursor-pointer'
       )}
     >
-      {tag}
+      #{tag}
     </button>
   );
 }
 
-// ─── Flow card ─────────────────────────────────────────────────────────────
+// ─── Flow row (informative, minimal chrome) ────────────────────────────────
 
-function FlowCard({ flow, onImport, importing }) {
+function FlowRow({ flow, onImport, importing }) {
   const tags = flow.tags ? flow.tags.split(';').filter(Boolean) : [];
-
   return (
-    <div className="p-4 bg-white/[0.03] rounded-2xl border border-white/10 hover:border-white/20 transition-all group">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-sm text-white/90 truncate">{flow.title}</h3>
-          {flow.description && (
-            <p className="text-[11px] text-white/40 mt-0.5 line-clamp-2">{flow.description}</p>
+    <div className="group flex items-start gap-4 py-4 border-b border-white/5 last:border-b-0">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <h3 className="text-sm font-semibold text-white truncate">{flow.title}</h3>
+          <span className="text-[10px] text-white/30">von {flow.author || 'Anonym'}</span>
+        </div>
+        {flow.description && (
+          <p className="text-xs text-white/50 mt-1 line-clamp-2 leading-relaxed">
+            {flow.description}
+          </p>
+        )}
+        <div className="flex items-center gap-3 mt-2 text-[10px] text-white/35">
+          <span className="flex items-center gap-1">
+            <Download size={10} /> {flow.downloads}
+          </span>
+          {flow.nodeCount > 0 && <span>{flow.nodeCount} Nodes</span>}
+          <span>{fmtDate(flow.createdAt)}</span>
+          {tags.length > 0 && (
+            <div className="flex gap-1 ml-auto">
+              {tags.slice(0, 3).map(t => <Tag key={t} tag={t} />)}
+              {tags.length > 3 && <span className="text-[10px] text-white/25">+{tags.length - 3}</span>}
+            </div>
           )}
         </div>
-        <button
-          onClick={() => onImport(flow)}
-          disabled={importing}
-          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500 text-blue-400 hover:text-white rounded-xl text-[11px] font-bold transition-all border border-blue-500/20 hover:border-transparent disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-        >
-          {importing
-            ? <Loader2 size={12} className="animate-spin" />
-            : <Download size={12} />}
-          Import
-        </button>
       </div>
-
-      {tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-3">
-          {tags.map(t => <TagPill key={t} tag={t} />)}
-        </div>
-      )}
-
-      <div className="flex items-center gap-4 mt-3 text-[10px] text-white/30">
-        <span className="flex items-center gap-1">
-          <Users size={10} />
-          {flow.author}
-        </span>
-        <span className="flex items-center gap-1">
-          <Download size={10} />
-          {flow.downloads} downloads
-        </span>
-        {flow.nodeCount > 0 && (
-          <span>{flow.nodeCount} nodes</span>
-        )}
-        <span className="ml-auto">{new Date(flow.createdAt).toLocaleDateString()}</span>
-      </div>
+      <button
+        onClick={() => onImport(flow)}
+        disabled={importing}
+        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-blue-500 text-white/70 hover:text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-40"
+      >
+        {importing
+          ? <Loader2 size={12} className="animate-spin" />
+          : <Download size={12} />}
+        Import
+      </button>
     </div>
   );
 }
@@ -95,34 +101,32 @@ export default function HubModal({ onClose, currentNodes, currentEdges, currentW
   const [activeTab, setActiveTab] = useState('browse');
 
   // Browse state
-  const [flows, setFlows] = useState([]);
-  const [allTags, setAllTags] = useState([]);
-  const [search, setSearch] = useState('');
-  const [activeTags, setActiveTags] = useState([]);
-  const [sort, setSort] = useState('downloads');
-  const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({ total: 0, pages: 1 });
+  const [flows, setFlows]             = useState([]);
+  const [allTags, setAllTags]         = useState([]);
+  const [search, setSearch]           = useState('');
+  const [activeTags, setActiveTags]   = useState([]);
+  const [sort, setSort]               = useState('downloads');
+  const [page, setPage]               = useState(1);
+  const [pagination, setPagination]   = useState({ total: 0, pages: 1 });
   const [browseLoading, setBrowseLoading] = useState(false);
-  const [browseError, setBrowseError] = useState(null);
-  const [importingId, setImportingId] = useState(null);
+  const [browseError, setBrowseError]     = useState(null);
+  const [importingId, setImportingId]     = useState(null);
 
   // Publish state
-  const [pubTitle, setPubTitle] = useState(currentWorkflowName || '');
+  const [pubTitle, setPubTitle]             = useState(currentWorkflowName || '');
   const [pubDescription, setPubDescription] = useState('');
-  const [pubTags, setPubTags] = useState('');
-  const [pubAuthor, setPubAuthor] = useState('');
-  const [publishing, setPublishing] = useState(false);
-  const [publishResult, setPublishResult] = useState(null); // null | 'ok' | { error }
+  const [pubTags, setPubTags]               = useState('');
+  const [pubAuthor, setPubAuthor]           = useState('');
+  const [publishing, setPublishing]         = useState(false);
+  const [publishResult, setPublishResult]   = useState(null); // null | 'ok' | { error }
 
   // Bot-check state
-  const [botVerified, setBotVerified] = useState(false);
   const [showBotCheck, setShowBotCheck] = useState(false);
-  const [botQuestion, setBotQuestion] = useState(null);
-  const [botInput, setBotInput] = useState('');
-  const [botError, setBotError] = useState(false);
+  const [botQuestion, setBotQuestion]   = useState(null);
+  const [botInput, setBotInput]         = useState('');
+  const [botError, setBotError]         = useState(false);
   const botInputRef = useRef(null);
 
-  // Focus bot input when modal opens
   useEffect(() => {
     if (showBotCheck && botInputRef.current) {
       setTimeout(() => botInputRef.current?.focus(), 50);
@@ -138,14 +142,13 @@ export default function HubModal({ onClose, currentNodes, currentEdges, currentW
       const params = new URLSearchParams({ page, limit: '12', sort });
       if (search) params.set('search', search);
       if (activeTags.length > 0) params.set('tags', activeTags.join(';'));
-
       const res = await fetch(`/api/hub/flows?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setFlows(data.flows || []);
       setPagination(data.pagination || { total: 0, pages: 1 });
-    } catch (err) {
-      setBrowseError('Community Hub nicht erreichbar. Starte den Hub-Server: npm run hub');
+    } catch {
+      setBrowseError('Hub-Server nicht erreichbar. Starte ihn mit: npm run hub');
       setFlows([]);
     } finally {
       setBrowseLoading(false);
@@ -156,26 +159,19 @@ export default function HubModal({ onClose, currentNodes, currentEdges, currentW
     try {
       const res = await fetch('/api/hub/tags');
       if (res.ok) setAllTags(await res.json());
-    } catch { /* hub offline — silently ignore */ }
+    } catch { /* hub offline — silent */ }
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'browse') {
-      fetchFlows();
-      fetchTags();
-    }
+    if (activeTab === 'browse') { fetchFlows(); fetchTags(); }
   }, [activeTab, fetchFlows, fetchTags]);
 
-  // Reset page when filter changes
   useEffect(() => { setPage(1); }, [search, activeTags, sort]);
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
-  const toggleTag = (tag) => {
-    setActiveTags(prev =>
-      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
-    );
-  };
+  const toggleTag = (tag) =>
+    setActiveTags(p => (p.includes(tag) ? p.filter(t => t !== tag) : [...p, tag]));
 
   const handleImport = async (flow) => {
     setImportingId(flow.id);
@@ -191,93 +187,53 @@ export default function HubModal({ onClose, currentNodes, currentEdges, currentW
     }
   };
 
-  const handlePublish = async () => {
+  // Single publish request — called from handlePublish after the bot check.
+  const doPublish = async () => {
+    setPublishing(true);
+    setPublishResult(null);
+    try {
+      const res = await fetch('/api/hub/flows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: pubTitle,
+          description: pubDescription,
+          tags: pubTags,
+          flowData: { nodes: currentNodes, edges: currentEdges },
+          author: pubAuthor || 'Anonymous',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Fehler beim Veröffentlichen.');
+      setPublishResult('ok');
+      setPubTitle(''); setPubDescription(''); setPubTags(''); setPubAuthor('');
+    } catch (err) {
+      setPublishResult({ error: err.message });
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const handlePublish = () => {
     if (!pubTitle.trim()) return;
     if (!currentNodes.length) {
       setPublishResult({ error: 'Der aktuelle Flow ist leer. Füge zuerst Nodes hinzu.' });
       return;
     }
-
-    // Bot check gate
-    if (!botVerified) {
-      setBotQuestion(randomQuestion());
-      setBotInput('');
-      setBotError(false);
-      setShowBotCheck(true);
-      return;
-    }
-
-    setPublishing(true);
-    setPublishResult(null);
-    try {
-      const res = await fetch('/api/hub/flows', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: pubTitle,
-          description: pubDescription,
-          tags: pubTags,
-          flowData: { nodes: currentNodes, edges: currentEdges },
-          author: pubAuthor || 'Anonymous',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Fehler beim Veröffentlichen.');
-      setPublishResult('ok');
-      setPubTitle('');
-      setPubDescription('');
-      setPubTags('');
-      setPubAuthor('');
-      setBotVerified(false); // reset for next publish
-    } catch (err) {
-      setPublishResult({ error: err.message });
-    } finally {
-      setPublishing(false);
-    }
+    setBotQuestion(randomQuestion());
+    setBotInput('');
+    setBotError(false);
+    setShowBotCheck(true);
   };
 
   const handleBotConfirm = () => {
     if (botInput.trim() === botQuestion.a) {
-      setBotVerified(true);
       setShowBotCheck(false);
-      // Re-call handlePublish — now botVerified will be true via the flag we just set,
-      // but since React state is async we trigger the publish directly
-      triggerPublishAfterVerification();
+      doPublish();
     } else {
       setBotError(true);
       setBotQuestion(randomQuestion());
       setBotInput('');
-    }
-  };
-
-  // Separate publish execution that skips the bot gate (called after verified)
-  const triggerPublishAfterVerification = async () => {
-    setPublishing(true);
-    setPublishResult(null);
-    try {
-      const res = await fetch('/api/hub/flows', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: pubTitle,
-          description: pubDescription,
-          tags: pubTags,
-          flowData: { nodes: currentNodes, edges: currentEdges },
-          author: pubAuthor || 'Anonymous',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Fehler beim Veröffentlichen.');
-      setPublishResult('ok');
-      setPubTitle('');
-      setPubDescription('');
-      setPubTags('');
-      setPubAuthor('');
-      setBotVerified(false);
-    } catch (err) {
-      setPublishResult({ error: err.message });
-    } finally {
-      setPublishing(false);
     }
   };
 
@@ -298,70 +254,51 @@ export default function HubModal({ onClose, currentNodes, currentEdges, currentW
             onClick={() => setShowBotCheck(false)}
           >
             <motion.div
-              initial={{ scale: 0.88, opacity: 0, y: 16 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.88, opacity: 0, y: 16 }}
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
               transition={{ type: 'spring', damping: 22, stiffness: 300 }}
               onClick={e => e.stopPropagation()}
-              className="bg-[#12131e] border border-white/10 rounded-3xl shadow-2xl w-[380px] max-w-[calc(100vw-2rem)] p-7 flex flex-col gap-5"
+              className="bg-[#12131e] border border-white/10 rounded-2xl shadow-2xl w-[340px] max-w-[calc(100vw-2rem)] p-6 space-y-5"
             >
-              {/* Icon + title */}
-              <div className="flex flex-col items-center gap-3 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-3xl select-none">
-                  🤖
-                </div>
-                <div>
-                  <h3 className="font-bold text-white text-base">Bist du ein Mensch?</h3>
-                  <p className="text-[11px] text-white/40 mt-1">
-                    Löse diese kurze Aufgabe, um zu veröffentlichen.
-                  </p>
-                </div>
-              </div>
-
-              {/* Question */}
               <div className="text-center">
-                <p className="text-2xl font-black text-white tracking-tight">
-                  {botQuestion?.q}
+                <p className="text-xs text-white/50 mb-3">Kurze Sicherheitsfrage</p>
+                <p className="text-3xl font-bold text-white tracking-tight">
+                  {botQuestion?.q} <span className="text-white/30">= ?</span>
                 </p>
               </div>
 
-              {/* Input */}
-              <div className="space-y-2">
-                <input
-                  ref={botInputRef}
-                  type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  placeholder="Deine Antwort…"
-                  value={botInput}
-                  onChange={e => { setBotInput(e.target.value); setBotError(false); }}
-                  onKeyDown={e => e.key === 'Enter' && handleBotConfirm()}
-                  className="w-full px-4 py-3 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white text-center placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
-                />
-                {botError && (
-                  <motion.p
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-[11px] text-red-400 text-center flex items-center justify-center gap-1"
-                  >
-                    <AlertCircle size={11} />
-                    Falsche Antwort. Bitte versuche es erneut.
-                  </motion.p>
+              <input
+                ref={botInputRef}
+                type="number"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="Antwort"
+                value={botInput}
+                onChange={e => { setBotInput(e.target.value); setBotError(false); }}
+                onKeyDown={e => e.key === 'Enter' && handleBotConfirm()}
+                className={cn(
+                  'w-full px-4 py-3 bg-[#1a1b26] rounded-lg border text-base text-white text-center placeholder-white/20 focus:outline-none transition-colors',
+                  botError ? 'border-red-500/50' : 'border-white/10 focus:border-blue-500/50'
                 )}
-              </div>
+              />
+              {botError && (
+                <p className="text-xs text-red-400 text-center -mt-2">
+                  Falsch. Neue Aufgabe versuchen.
+                </p>
+              )}
 
-              {/* Buttons */}
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <button
                   onClick={() => setShowBotCheck(false)}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white/50 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
+                  className="flex-1 py-2.5 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/5 transition-colors"
                 >
                   Abbrechen
                 </button>
                 <button
                   onClick={handleBotConfirm}
                   disabled={!botInput.trim()}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98]"
+                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 transition-colors disabled:opacity-40"
                 >
                   Bestätigen
                 </button>
@@ -371,140 +308,144 @@ export default function HubModal({ onClose, currentNodes, currentEdges, currentW
         )}
       </AnimatePresence>
 
-      {/* ── Main modal ────────────────────────────────────────────────────── */}
+      {/* ── Main modal ──────────────────────────────────────────────────── */}
       <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm">
         <motion.div
-          initial={{ scale: 0.92, opacity: 0 }}
+          initial={{ scale: 0.96, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.92, opacity: 0 }}
-          transition={{ type: 'spring', damping: 24, stiffness: 280 }}
-          className="glass w-[780px] max-h-[88vh] rounded-3xl overflow-hidden shadow-2xl border border-white/10 flex flex-col"
+          exit={{ scale: 0.96, opacity: 0 }}
+          transition={{ type: 'spring', damping: 26, stiffness: 300 }}
+          className="bg-[#0c0d14] w-[720px] max-h-[85vh] rounded-2xl overflow-hidden border border-white/10 flex flex-col shadow-2xl"
         >
-          {/* Header */}
-          <div className="px-6 pt-6 pb-0 border-b border-white/10 bg-white/[0.02] shrink-0">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
-                  <Globe size={18} className="text-blue-400" />
-                </div>
-                <div>
-                  <h2 className="font-bold text-base text-white">Community Hub</h2>
-                  <p className="text-[11px] text-white/40">Flows entdecken und teilen</p>
-                </div>
-              </div>
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-white/10 rounded-xl transition-colors text-white/40 hover:text-white"
-              >
-                <X size={18} />
-              </button>
+          {/* Header — flat, no decoration */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+            <div>
+              <h2 className="text-sm font-semibold text-white">Community Hub</h2>
+              <p className="text-[11px] text-white/40">
+                {pagination.total > 0
+                  ? `${pagination.total} Flows geteilt`
+                  : 'Flows entdecken & teilen'}
+              </p>
             </div>
-
-            {/* Tabs */}
-            <div className="flex gap-1">
+            <div className="flex items-center gap-1">
+              {/* Tabs inline with header */}
               {[
-                { id: 'browse', icon: <Search size={13} />, label: 'Durchsuchen' },
-                { id: 'publish', icon: <Upload size={13} />, label: 'Veröffentlichen' },
+                { id: 'browse',  icon: <Search size={13} />,  label: 'Durchsuchen' },
+                { id: 'publish', icon: <Upload size={13} />,  label: 'Teilen'      },
               ].map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    'flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-bold transition-all border-b-2',
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
                     activeTab === tab.id
-                      ? 'text-white border-blue-500 bg-white/5'
-                      : 'text-white/40 border-transparent hover:text-white/70'
+                      ? 'bg-white/10 text-white'
+                      : 'text-white/40 hover:text-white/70'
                   )}
                 >
                   {tab.icon}
                   {tab.label}
                 </button>
               ))}
+              <button
+                onClick={onClose}
+                className="ml-1 p-1.5 hover:bg-white/5 rounded-lg text-white/40 hover:text-white transition-colors"
+              >
+                <X size={15} />
+              </button>
             </div>
           </div>
 
           {/* Body */}
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
 
-            {/* ── Browse Tab ─────────────────────────────────────────────── */}
+            {/* ── Browse ─────────────────────────────────────────────── */}
             {activeTab === 'browse' && (
               <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-                {/* Filters */}
-                <div className="px-6 py-4 bg-black/20 border-b border-white/5 shrink-0 space-y-3">
-                  {/* Search + sort */}
-                  <div className="flex gap-3">
-                    <div className="relative flex-1">
-                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-                      <input
-                        type="text"
-                        placeholder="Flows suchen…"
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2.5 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/25 focus:outline-none focus:border-blue-500/50 transition-colors"
-                      />
-                      {search && (
-                        <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white">
-                          <X size={12} />
-                        </button>
-                      )}
-                    </div>
-                    <div className="relative">
-                      <select
-                        value={sort}
-                        onChange={e => setSort(e.target.value)}
-                        className="appearance-none px-4 py-2.5 pr-8 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
+                {/* Filters — single compact row */}
+                <div className="px-5 py-3 border-b border-white/5 flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+                    <input
+                      type="text"
+                      placeholder="Suchen…"
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      className="w-full pl-8 pr-8 py-2 bg-white/5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:bg-white/10 transition-colors"
+                    />
+                    {search && (
+                      <button
+                        onClick={() => setSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white"
                       >
-                        <option value="downloads">Beliebteste</option>
-                        <option value="newest">Neueste</option>
-                      </select>
-                      <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
-                    </div>
-                    <button onClick={fetchFlows} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-white/40 hover:text-white transition-colors">
-                      <RotateCcw size={14} />
-                    </button>
+                        <X size={12} />
+                      </button>
+                    )}
                   </div>
-
-                  {/* Tags */}
-                  {allTags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {allTags.slice(0, 20).map(tag => (
-                        <TagPill key={tag} tag={tag} active={activeTags.includes(tag)} onClick={toggleTag} />
-                      ))}
-                      {activeTags.length > 0 && (
-                        <button
-                          onClick={() => setActiveTags([])}
-                          className="px-2.5 py-1 rounded-full text-[10px] font-bold text-red-400/70 hover:text-red-400 border border-red-500/20 hover:bg-red-500/10 transition-all"
-                        >
-                          ✕ Reset
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  <div className="relative">
+                    <select
+                      value={sort}
+                      onChange={e => setSort(e.target.value)}
+                      className="appearance-none pl-3 pr-8 py-2 bg-white/5 rounded-lg text-xs text-white/80 focus:outline-none cursor-pointer"
+                    >
+                      <option value="downloads">Beliebt</option>
+                      <option value="newest">Neu</option>
+                    </select>
+                    <ChevronDown size={11} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+                  </div>
+                  <button
+                    onClick={fetchFlows}
+                    title="Aktualisieren"
+                    className="p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                  >
+                    <RotateCcw size={13} />
+                  </button>
                 </div>
 
-                {/* Flow list */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-3">
+                {/* Active tag filter — only show when tags selected or available */}
+                {(allTags.length > 0 || activeTags.length > 0) && (
+                  <div className="px-5 py-2 border-b border-white/5 flex items-center gap-2 overflow-x-auto scrollbar-none">
+                    <span className="text-[10px] text-white/30 shrink-0">Tags:</span>
+                    {allTags.slice(0, 15).map(tag => (
+                      <Tag
+                        key={tag}
+                        tag={tag}
+                        active={activeTags.includes(tag)}
+                        onClick={toggleTag}
+                      />
+                    ))}
+                    {activeTags.length > 0 && (
+                      <button
+                        onClick={() => setActiveTags([])}
+                        className="shrink-0 text-[10px] text-red-400/70 hover:text-red-400"
+                      >
+                        zurücksetzen
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* List */}
+                <div className="flex-1 overflow-y-auto px-5">
                   {browseLoading && (
-                    <div className="flex items-center justify-center py-16">
-                      <Loader2 size={24} className="animate-spin text-white/30" />
+                    <div className="flex items-center justify-center py-20">
+                      <Loader2 size={20} className="animate-spin text-white/30" />
                     </div>
                   )}
                   {browseError && !browseLoading && (
-                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
-                      <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center">
-                        <AlertCircle size={22} className="text-amber-400" />
-                      </div>
-                      <p className="text-sm text-white/50 max-w-xs leading-relaxed">{browseError}</p>
+                    <div className="flex flex-col items-center justify-center py-20 gap-2 text-center">
+                      <AlertCircle size={20} className="text-amber-400/70" />
+                      <p className="text-xs text-white/50 max-w-xs">{browseError}</p>
                     </div>
                   )}
                   {!browseLoading && !browseError && flows.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-16 gap-3">
-                      <Globe size={28} className="text-white/20" />
-                      <p className="text-sm text-white/30">Keine Flows gefunden.</p>
+                    <div className="flex flex-col items-center justify-center py-20 gap-2">
+                      <Search size={20} className="text-white/20" />
+                      <p className="text-xs text-white/30">Keine Flows gefunden</p>
                     </div>
                   )}
                   {!browseLoading && flows.map(flow => (
-                    <FlowCard
+                    <FlowRow
                       key={flow.id}
                       flow={flow}
                       onImport={handleImport}
@@ -515,27 +456,24 @@ export default function HubModal({ onClose, currentNodes, currentEdges, currentW
 
                 {/* Pagination */}
                 {!browseLoading && pagination.pages > 1 && (
-                  <div className="px-6 py-4 border-t border-white/5 bg-black/20 shrink-0 flex items-center justify-between">
+                  <div className="px-5 py-3 border-t border-white/5 flex items-center justify-between">
                     <span className="text-[11px] text-white/30">
-                      {pagination.total} Flows gesamt
+                      Seite {page} von {pagination.pages} · {pagination.total} gesamt
                     </span>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1">
                       <button
                         disabled={page <= 1}
                         onClick={() => setPage(p => p - 1)}
-                        className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-xs text-white/60 hover:text-white transition-all border border-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="px-2.5 py-1 text-xs text-white/60 hover:text-white hover:bg-white/5 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                       >
-                        ← Zurück
+                        ←
                       </button>
-                      <span className="px-3 py-1.5 text-xs text-white/40">
-                        {page} / {pagination.pages}
-                      </span>
                       <button
                         disabled={page >= pagination.pages}
                         onClick={() => setPage(p => p + 1)}
-                        className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-xs text-white/60 hover:text-white transition-all border border-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="px-2.5 py-1 text-xs text-white/60 hover:text-white hover:bg-white/5 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                       >
-                        Weiter →
+                        →
                       </button>
                     </div>
                   </div>
@@ -543,30 +481,27 @@ export default function HubModal({ onClose, currentNodes, currentEdges, currentW
               </div>
             )}
 
-            {/* ── Publish Tab ─────────────────────────────────────────────── */}
+            {/* ── Publish ────────────────────────────────────────────── */}
             {activeTab === 'publish' && (
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 overflow-y-auto">
                 <AnimatePresence mode="wait">
                   {publishResult === 'ok' ? (
                     <motion.div
                       key="success"
-                      initial={{ opacity: 0, y: 10 }}
+                      initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="flex flex-col items-center justify-center py-20 gap-4 text-center"
+                      className="flex flex-col items-center justify-center py-20 gap-3 text-center px-5"
                     >
-                      <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-                        <CheckCircle2 size={28} className="text-emerald-400" />
-                      </div>
+                      <CheckCircle2 size={32} className="text-emerald-400" />
                       <div>
-                        <h3 className="font-bold text-white text-lg">Veröffentlicht!</h3>
-                        <p className="text-sm text-white/40 mt-1">Dein Flow ist jetzt in der Community verfügbar.</p>
+                        <h3 className="font-semibold text-white">Veröffentlicht</h3>
+                        <p className="text-xs text-white/40 mt-1">Dein Flow ist jetzt in der Community.</p>
                       </div>
                       <button
                         onClick={() => { setPublishResult(null); setActiveTab('browse'); }}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-bold text-white transition-all"
+                        className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium text-white transition-colors"
                       >
-                        <ArrowUpRight size={15} />
-                        Im Hub ansehen
+                        Zur Liste
                       </button>
                     </motion.div>
                   ) : (
@@ -574,84 +509,85 @@ export default function HubModal({ onClose, currentNodes, currentEdges, currentW
                       key="form"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      className="space-y-5 max-w-lg mx-auto"
+                      className="p-5 space-y-4 max-w-lg mx-auto"
                     >
-                      <div className="p-4 bg-blue-500/5 rounded-2xl border border-blue-500/15">
-                        <p className="text-[11px] text-blue-300/70 leading-relaxed">
-                          Du veröffentlichst den aktuell geladenen Flow ({currentNodes.length} Nodes).
-                          Stelle sicher, dass er keine sensiblen Informationen enthält.
-                        </p>
+                      {/* Context summary */}
+                      <div className="flex items-center justify-between text-xs text-white/50 pb-3 border-b border-white/5">
+                        <span>Aktueller Flow</span>
+                        <span className="text-white/80 font-medium">
+                          {currentWorkflowName || 'Unbenannt'} · {currentNodes.length} Nodes
+                        </span>
                       </div>
 
-                      {/* Error */}
                       {publishResult?.error && (
-                        <div className="flex items-center gap-2 p-3 bg-red-500/10 rounded-xl border border-red-500/20 text-xs text-red-400">
-                          <AlertCircle size={14} />
+                        <div className="flex items-start gap-2 p-3 bg-red-500/5 rounded-lg border border-red-500/20 text-xs text-red-300">
+                          <AlertCircle size={13} className="shrink-0 mt-0.5" />
                           {publishResult.error}
                         </div>
                       )}
 
                       {/* Title */}
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
-                          Titel <span className="text-red-400">*</span>
-                        </label>
+                      <div>
+                        <div className="flex items-baseline justify-between mb-1">
+                          <label className="text-xs text-white/60">
+                            Titel <span className="text-red-400">*</span>
+                          </label>
+                          <span className="text-[10px] text-white/25">{pubTitle.length}/120</span>
+                        </div>
                         <input
                           type="text"
                           placeholder="z.B. Umsatz nach Kunde"
                           maxLength={120}
                           value={pubTitle}
                           onChange={e => setPubTitle(e.target.value)}
-                          className="w-full px-4 py-3 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
+                          className="w-full px-3 py-2 bg-white/5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:bg-white/10 transition-colors"
                         />
-                        <p className="text-[10px] text-white/20 text-right">{pubTitle.length}/120</p>
                       </div>
 
                       {/* Description */}
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Beschreibung</label>
+                      <div>
+                        <label className="text-xs text-white/60 block mb-1">Beschreibung</label>
                         <textarea
-                          placeholder="Was macht dieser Flow? Welches Problem löst er?"
+                          placeholder="Was macht dieser Flow?"
                           rows={3}
                           value={pubDescription}
                           onChange={e => setPubDescription(e.target.value)}
-                          className="w-full px-4 py-3 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors resize-none"
+                          className="w-full px-3 py-2 bg-white/5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:bg-white/10 transition-colors resize-none"
                         />
                       </div>
 
                       {/* Tags */}
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
-                          Tags <span className="text-white/20 font-normal">(Semikolon-getrennt)</span>
+                      <div>
+                        <label className="text-xs text-white/60 block mb-1">
+                          Tags <span className="text-white/30">(Semikolon-getrennt)</span>
                         </label>
-                        <div className="relative">
-                          <Tag size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-                          <input
-                            type="text"
-                            placeholder="sales;orders;customers"
-                            value={pubTags}
-                            onChange={e => setPubTags(e.target.value)}
-                            className="w-full pl-9 pr-4 py-3 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
-                          />
-                        </div>
+                        <input
+                          type="text"
+                          placeholder="sales; orders; customers"
+                          value={pubTags}
+                          onChange={e => setPubTags(e.target.value)}
+                          className="w-full px-3 py-2 bg-white/5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:bg-white/10 transition-colors"
+                        />
                         {pubTags && (
-                          <div className="flex flex-wrap gap-1.5 mt-2">
+                          <div className="flex flex-wrap gap-1 mt-2">
                             {pubTags.split(';').filter(t => t.trim()).map((t, i) => (
-                              <TagPill key={i} tag={t.trim()} />
+                              <Tag key={i} tag={t.trim()} />
                             ))}
                           </div>
                         )}
                       </div>
 
                       {/* Author */}
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Autor</label>
+                      <div>
+                        <label className="text-xs text-white/60 block mb-1">
+                          Autor <span className="text-white/30">(optional)</span>
+                        </label>
                         <input
                           type="text"
-                          placeholder="Dein Name (optional)"
+                          placeholder="Dein Name"
                           value={pubAuthor}
                           onChange={e => setPubAuthor(e.target.value)}
-                          className="w-full px-4 py-3 bg-[#1a1b26] rounded-xl border border-white/10 text-sm text-white placeholder-white/20 focus:outline-none focus:border-blue-500/50 transition-colors"
+                          className="w-full px-3 py-2 bg-white/5 rounded-lg text-sm text-white placeholder-white/25 focus:outline-none focus:bg-white/10 transition-colors"
                         />
                       </div>
 
@@ -659,12 +595,17 @@ export default function HubModal({ onClose, currentNodes, currentEdges, currentW
                       <button
                         onClick={handlePublish}
                         disabled={publishing || !pubTitle.trim() || !currentNodes.length}
-                        className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-bold text-white transition-all shadow-lg shadow-blue-600/20 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98]"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         {publishing
-                          ? <><Loader2 size={15} className="animate-spin" /> Wird veröffentlicht…</>
-                          : <><Upload size={15} /> Flow veröffentlichen</>}
+                          ? <><Loader2 size={14} className="animate-spin" /> Wird veröffentlicht…</>
+                          : <><Upload size={14} /> Veröffentlichen</>}
                       </button>
+
+                      <p className="text-[10px] text-white/30 text-center leading-relaxed">
+                        Stelle sicher, dass der Flow keine sensiblen Daten enthält.
+                        Zugangsdaten werden niemals mit veröffentlicht.
+                      </p>
                     </motion.div>
                   )}
                 </AnimatePresence>

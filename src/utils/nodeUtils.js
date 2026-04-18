@@ -18,20 +18,23 @@ export const collectUpstreamColumns = (nodeId, nodes, edges, schema) => {
     })) : [];
   }
 
-  // If it's a JoinNode, it has two inputs: target1 and join
+  // A JoinNode is now a hub: it accepts N incoming source connections.
+  // Collect columns from every source listed in data.sourceOrder (in order,
+  // so base table's columns come first). Fall back to raw edges if sourceOrder
+  // is missing (unsynced).
   if (node.type === 'joinNode') {
-    const upstreamEdges = edges.filter(e => e.target === node.id);
-    const u1 = upstreamEdges.find(e => e.targetHandle === 'target1')?.source;
-    const u2 = upstreamEdges.find(e => e.targetHandle === 'join')?.source;
-
+    const order = (node.data.sourceOrder && node.data.sourceOrder.length > 0)
+      ? node.data.sourceOrder
+      : edges.filter(e => e.target === node.id).map(e => e.source);
     const cols = [];
-    if (u1) cols.push(...collectUpstreamColumns(u1, nodes, edges, schema));
-    if (u2) cols.push(...collectUpstreamColumns(u2, nodes, edges, schema));
+    order.forEach(sid => {
+      cols.push(...collectUpstreamColumns(sid, nodes, edges, schema));
+    });
     return cols;
   }
 
-  // For other nodes (Filter, Sort, etc.), they just pass through columns from their single input
-  const incomingEdge = edges.find(e => e.target === node.id && e.targetHandle !== 'join');
+  // For other nodes (Filter, Sort, etc.), pass through columns from single input.
+  const incomingEdge = edges.find(e => e.target === node.id);
   if (incomingEdge) {
     return collectUpstreamColumns(incomingEdge.source, nodes, edges, schema);
   }

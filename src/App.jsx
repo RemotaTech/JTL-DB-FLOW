@@ -21,6 +21,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from './lib/utils';
 import { generateSql } from './utils/queryGenerator';
 import HubModal from './components/HubModal';
+import VariablesPanel from './components/VariablesPanel';
+import { RefsProvider, uniqueRefName } from './lib/refs';
 import { loadDbConfig, saveDbConfig, clearDbConfig, EMPTY_CONFIG, isSecureContext } from './lib/crypto';
 
 // In dev Vite proxies /api → localhost:3001 so BRIDGE_URL stays empty.
@@ -78,6 +80,43 @@ function App() {
   });
   const [currentWorkflowName, setCurrentWorkflowName] = useState('');
 
+  // ── Variables (refs) — shared state editable from top-right panel ──────
+  const [refs, setRefs] = useState({});
+
+  const createRef = useCallback((suggestedName, initialValue) => {
+    const id = `ref_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    setRefs((r) => ({
+      ...r,
+      [id]: {
+        name: uniqueRefName(suggestedName || 'Variable', r),
+        value: initialValue ?? '',
+      },
+    }));
+    return id;
+  }, []);
+
+  const updateRef = useCallback((id, patch) => {
+    setRefs((r) => (r[id] ? { ...r, [id]: { ...r[id], ...patch } } : r));
+  }, []);
+
+  const renameRef = useCallback((id, name) => {
+    setRefs((r) => (r[id] ? { ...r, [id]: { ...r[id], name } } : r));
+  }, []);
+
+  const deleteRef = useCallback((id) => {
+    setRefs((r) => {
+      const { [id]: _, ...rest } = r;
+      return rest;
+    });
+  }, []);
+
+  const setAllRefs = useCallback((incoming) => setRefs(incoming || {}), []);
+
+  const refsContextValue = useMemo(
+    () => ({ refs, createRef, updateRef, renameRef, deleteRef, setAllRefs }),
+    [refs, createRef, updateRef, renameRef, deleteRef, setAllRefs]
+  );
+
   // ── Workflow CRUD ──────────────────────────────────────────────────────
 
   const saveWorkflow = () => {
@@ -91,6 +130,7 @@ function App() {
       name,
       nodes,
       edges,
+      refs,
       updatedAt: new Date().toISOString(),
     };
     let updatedWorkflows;
@@ -110,6 +150,7 @@ function App() {
   const loadWorkflow = (wf) => {
     setNodes(wf.nodes || []);
     setEdges(wf.edges || []);
+    setAllRefs(wf.refs || {});
     setCurrentWorkflowName(wf.name);
     setShowWorkflowsModal(false);
   };
@@ -348,6 +389,7 @@ function App() {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
+    <RefsProvider value={refsContextValue}>
     <div className="w-full relative bg-[#050505] text-white overflow-hidden font-sans" style={{ height: '100dvh' }}>
       <ReactFlowProvider>
         <div className="absolute inset-0">
@@ -522,7 +564,22 @@ function App() {
               'absolute bottom-0 left-0 right-0 z-[100] transition-all duration-500 ease-in-out',
               showPreview ? 'h-[400px]' : 'h-12'
             )}>
-              <div className="h-full glass border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] flex flex-col">
+              <div className="relative h-full glass border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] flex flex-col">
+                {/* Centered drawer handle — floats above the top edge */}
+                <button
+                  onClick={() => setShowPreview(!showPreview)}
+                  title={showPreview ? 'Schublade schließen' : 'Schublade öffnen'}
+                  className="absolute left-1/2 -translate-x-1/2 -top-4 z-10 flex items-center justify-center w-14 h-8 rounded-t-xl bg-white/10 hover:bg-blue-500/80 border border-white/10 hover:border-blue-400 backdrop-blur transition-all shadow-lg group"
+                >
+                  <ChevronUp
+                    size={18}
+                    className={cn(
+                      'text-white/70 group-hover:text-white transition-transform duration-300',
+                      showPreview && 'rotate-180'
+                    )}
+                  />
+                </button>
+
                 {/* Panel header */}
                 <div className="h-12 flex items-center justify-between px-6 bg-white/5 border-b border-white/10 shrink-0">
                   <div className="flex items-center gap-6">
@@ -531,7 +588,6 @@ function App() {
                       <span className="text-[10px] font-bold uppercase tracking-widest text-white/60 group-hover:text-white transition-colors">
                         SQL View
                       </span>
-                      <ChevronUp size={14} className={cn('text-white/20 transition-transform', showPreview && 'rotate-180')} />
                     </button>
                     <div className="h-4 w-[1px] bg-white/10" />
                     <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-white/40">
@@ -947,6 +1003,7 @@ function App() {
               if (confirm(`Flow "${name}" importieren? Ungespeicherte Änderungen gehen verloren.`)) {
                 setNodes(flowData.nodes || []);
                 setEdges(flowData.edges || []);
+                setAllRefs(flowData.refs || {});
                 setCurrentWorkflowName(name);
                 setShowHub(false);
               }
@@ -954,7 +1011,11 @@ function App() {
           />
         )}
       </AnimatePresence>
+
+      {/* ── Variables panel (top-right, floats over canvas) ─────── */}
+      <VariablesPanel />
     </div>
+    </RefsProvider>
   );
 }
 
