@@ -10,8 +10,17 @@
  */
 import dotenv from 'dotenv';
 import { app as hubApp, prisma, registerFinalHandlers } from './hub/app.js';
+import { seedFeatured } from './hub/seed.js';
 
 dotenv.config();
+
+// Seed / refresh the curated featured templates on startup (idempotent).
+try {
+  const n = await seedFeatured(prisma);
+  console.log(`🌱  Seeded ${n} featured templates`);
+} catch (err) {
+  console.error('Seeding failed:', err.message);
+}
 
 const isProd = process.env.NODE_ENV === 'production';
 let closeBridgePools = async () => {};

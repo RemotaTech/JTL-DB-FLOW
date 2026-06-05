@@ -108,8 +108,14 @@ app.get('/api/hub/flows', async (req, res) => {
       });
     }
 
+    if (req.query.featured === 'true') andClauses.push({ featured: true });
+
     const where = andClauses.length > 0 ? { AND: andClauses } : {};
-    const orderBy = sort === 'newest' ? { createdAt: 'desc' } : { downloads: 'desc' };
+    const orderBy =
+      sort === 'newest'     ? [{ createdAt: 'desc' }] :
+      sort === 'executions' ? [{ executions: 'desc' }, { downloads: 'desc' }] :
+      sort === 'featured'   ? [{ featured: 'desc' }, { downloads: 'desc' }] :
+                              [{ downloads: 'desc' }];
 
     const [flows, total] = await Promise.all([
       prisma.flow.findMany({
@@ -123,9 +129,13 @@ app.get('/api/hub/flows', async (req, res) => {
           title: true,
           description: true,
           tags: true,
+          icon: true,
+          color: true,
           author: true,
           downloads: true,
-          nodeCount: true,
+          executions: true,
+          stepCount: true,
+          featured: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -165,12 +175,12 @@ app.get('/api/hub/flows/:id', async (req, res) => {
 
 /**
  * POST /api/hub/flows
- * Body: { title, description?, tags, flowData: { nodes, edges }, author? }
- * Tags are semicolon-separated (e.g. "sales;orders;customers").
+ * Body: { title, description?, tags, icon?, color?, flowData: { steps, vars? }, author? }
+ * Tags are semicolon-separated (e.g. "umsatz;kunden;aufträge").
  */
 app.post('/api/hub/flows', async (req, res) => {
   try {
-    const { title, description, tags, flowData, author } = req.body;
+    const { title, description, tags, icon, color, flowData, author } = req.body;
 
     if (!title || typeof title !== 'string' || title.trim().length === 0) {
       return res.status(400).json({ error: 'Title is required' });
@@ -178,21 +188,29 @@ app.post('/api/hub/flows', async (req, res) => {
     if (title.trim().length > 120) {
       return res.status(400).json({ error: 'Title must be 120 characters or fewer' });
     }
-    if (!flowData || typeof flowData !== 'object') {
-      return res.status(400).json({ error: 'flowData (nodes + edges) is required' });
+    if (!flowData || typeof flowData !== 'object' || !Array.isArray(flowData.steps)) {
+      return res.status(400).json({ error: 'flowData.steps[] is required' });
     }
-    if (!Array.isArray(flowData.nodes) || !Array.isArray(flowData.edges)) {
-      return res.status(400).json({ error: 'flowData must contain nodes[] and edges[]' });
+    const source = flowData.steps.find(s => s && s.type === 'source');
+    if (!source || !source.table) {
+      return res.status(400).json({ error: 'The report needs a source table' });
     }
+
+    // Sanitize visual fields
+    const safeColor = typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#3b82f6';
+    const safeIcon = typeof icon === 'string' && /^[a-zA-Z]{1,30}$/.test(icon) ? icon : 'sparkles';
 
     const flow = await prisma.flow.create({
       data: {
         title: title.trim(),
-        description: (description ?? '').trim(),
+        description: (description ?? '').trim().slice(0, 2000),
         tags: normalizeTags(tags),
+        icon: safeIcon,
+        color: safeColor,
         flowData,
-        author: (author ?? '').trim() || 'Anonymous',
-        nodeCount: flowData.nodes.length,
+        author: (author ?? '').trim().slice(0, 80) || 'Anonymous',
+        stepCount: flowData.steps.length,
+        featured: false,
       },
     });
 
@@ -218,6 +236,26 @@ app.post('/api/hub/flows/:id/download', async (req, res) => {
     if (err.code === 'P2025') return res.status(404).json({ error: 'Flow not found' });
     console.error('POST /api/hub/flows/:id/download error:', err.message);
     res.status(500).json({ error: 'Failed to update download count' });
+  }
+});
+
+/**
+ * POST /api/hub/flows/:id/execute
+ * Increments the execution counter — fired when a user actually RUNs an
+ * imported community report against their database. Returns the new count.
+ */
+app.post('/api/hub/flows/:id/execute', async (req, res) => {
+  try {
+    const flow = await prisma.flow.update({
+      where: { id: req.params.id },
+      data: { executions: { increment: 1 } },
+      select: { id: true, executions: true },
+    });
+    res.json(flow);
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Flow not found' });
+    console.error('POST /api/hub/flows/:id/execute error:', err.message);
+    res.status(500).json({ error: 'Failed to update execution count' });
   }
 });
 
@@ -249,6 +287,29 @@ app.get('/api/hub/tags', async (_req, res) => {
   } catch (err) {
     console.error('GET /api/hub/tags error:', err.message);
     res.status(500).json({ error: 'Failed to fetch tags' });
+  }
+});
+
+/**
+ * GET /api/hub/stats
+ * Aggregate community numbers for the gallery header.
+ */
+app.get('/api/hub/stats', async (_req, res) => {
+  try {
+    const [count, agg, authors] = await Promise.all([
+      prisma.flow.count(),
+      prisma.flow.aggregate({ _sum: { downloads: true, executions: true } }),
+      prisma.flow.findMany({ select: { author: true }, distinct: ['author'] }),
+    ]);
+    res.json({
+      flows: count,
+      downloads: agg._sum.downloads || 0,
+      executions: agg._sum.executions || 0,
+      authors: authors.length,
+    });
+  } catch (err) {
+    console.error('GET /api/hub/stats error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch stats' });
   }
 });
 

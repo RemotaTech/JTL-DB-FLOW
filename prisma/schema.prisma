@@ -11,34 +11,48 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// A published JTL workflow that other users can discover and import.
+/// A published JTL report ("Bericht") that the community can discover & import.
 model Flow {
   id          String   @id @default(cuid())
 
-  /// Human-readable workflow title (max 120 chars)
+  /// Human-readable title (max 120 chars)
   title       String
 
-  /// Optional long-form description of what the workflow does
+  /// Long-form description of what the report does
   description String   @default("")
 
-  /// Semicolon-separated list of tags, e.g. "sales;orders;customers"
+  /// Semicolon-separated tags, e.g. "umsatz;kunden;aufträge"
   tags        String   @default("")
 
-  /// Full ReactFlow state: { nodes: [...], edges: [...] }
+  /// Lucide-style icon name for the card (e.g. "cart", "users", "trending")
+  icon        String   @default("sparkles")
+
+  /// Accent color (hex) for the card / icon chip
+  color       String   @default("#3b82f6")
+
+  /// Full report pipeline: { steps: [...], vars: [...] }
   flowData    Json
 
   /// Display name of the author
   author      String   @default("Anonymous")
 
-  /// How many times this flow has been downloaded / imported
+  /// Times this report has been downloaded / imported into a local builder
   downloads   Int      @default(0)
 
-  /// Cached node count for display without parsing flowData
-  nodeCount   Int      @default(0)
+  /// Times this report has been executed against a database (by hub id)
+  executions  Int      @default(0)
+
+  /// Cached step count for display without parsing flowData
+  stepCount   Int      @default(0)
+
+  /// Curated / official template shipped with DBFLOW
+  featured    Boolean  @default(false)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([downloads])
+  @@index([executions])
+  @@index([featured])
   @@index([createdAt])
 }

@@ -1,0 +1,73 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JTL Workflow Creator — Self-hosted image
+# Bundles: Vite frontend + MSSQL bridge + community hub (direct Prisma → Postgres)
+#
+# Build:
+#   docker build -f Dockerfile.selfhost -t jtl-workflow-creator .
+#
+# Run:
+#   docker run -p 3001:3001 jtl-workflow-creator
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Stage 1: Build frontend ───────────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Prisma generate needs OpenSSL
+RUN apk add --no-cache openssl
+
+ENV NODE_ENV=development
+
+COPY package*.json ./
+RUN npm install --prefer-offline
+
+COPY . .
+
+# Bake DATABASE_URL so Prisma generate works at build time
+ENV DATABASE_URL="postgres://postgres:0OL1Mr5WizijwctaIB3kPo5Im2srvX9k8N9aUxVWXA7hxzreITdOBxa6Aupn22ty@91.99.165.255:5432/postgres"
+RUN npx prisma generate
+
+# VITE_BRIDGE_URL='' = same-origin (bridge served on same Express app)
+ARG VITE_BRIDGE_URL=
+ENV VITE_BRIDGE_URL=${VITE_BRIDGE_URL}
+RUN npm run build
+
+# ── Stage 2: Production runtime ───────────────────────────────────────────
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+RUN apk add --no-cache openssl
+
+COPY package*.json ./
+RUN npm ci --omit=dev --prefer-offline
+
+# Prisma generated client + engines
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY prisma ./prisma
+
+# Application
+COPY selfhost-server.js ./
+COPY bridge ./bridge
+COPY hub ./hub
+
+# Schema files
+COPY schema.json ./
+COPY versions ./versions
+
+# Built frontend
+COPY --from=builder /app/dist ./dist
+
+# Hardcoded — points to the developer's Postgres instance. Read-only from user POV.
+ENV DATABASE_URL="postgres://postgres:0OL1Mr5WizijwctaIB3kPo5Im2srvX9k8N9aUxVWXA7hxzreITdOBxa6Aupn22ty@91.99.165.255:5432/postgres"
+ENV PORT=3001
+
+EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:3001/api/hub/health || exit 1
+
+CMD ["node", "selfhost-server.js"]

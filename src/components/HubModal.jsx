@@ -97,7 +97,18 @@ function FlowRow({ flow, onImport, importing }) {
 
 // ─── HubModal ──────────────────────────────────────────────────────────────
 
-export default function HubModal({ onClose, currentNodes, currentEdges, currentWorkflowName, onImport }) {
+export default function HubModal({ onClose, currentPipeline, currentWorkflowName, onImport }) {
+  // Rough "size" of the current report — number of configured steps. Used for
+  // the publish guard (empty report) and the context summary line.
+  const stepCount = currentPipeline
+    ? (currentPipeline.source ? 1 : 0)
+      + (currentPipeline.joins?.length || 0)
+      + (currentPipeline.filters?.length || 0)
+      + (currentPipeline.groupBy?.length || 0)
+      + (currentPipeline.having?.length || 0)
+      + (currentPipeline.sort?.length || 0)
+      + (currentPipeline.columns?.length || 0)
+    : 0;
   const [activeTab, setActiveTab] = useState('browse');
 
   // Browse state
@@ -199,7 +210,7 @@ export default function HubModal({ onClose, currentNodes, currentEdges, currentW
           title: pubTitle,
           description: pubDescription,
           tags: pubTags,
-          flowData: { nodes: currentNodes, edges: currentEdges },
+          flowData: { pipeline: currentPipeline },
           author: pubAuthor || 'Anonymous',
         }),
       });
@@ -216,8 +227,8 @@ export default function HubModal({ onClose, currentNodes, currentEdges, currentW
 
   const handlePublish = () => {
     if (!pubTitle.trim()) return;
-    if (!currentNodes.length) {
-      setPublishResult({ error: 'Der aktuelle Flow ist leer. Füge zuerst Nodes hinzu.' });
+    if (!currentPipeline?.source) {
+      setPublishResult({ error: 'Der aktuelle Bericht ist leer. Wähle zuerst eine Quelle.' });
       return;
     }
     setBotQuestion(randomQuestion());
@@ -513,9 +524,9 @@ export default function HubModal({ onClose, currentNodes, currentEdges, currentW
                     >
                       {/* Context summary */}
                       <div className="flex items-center justify-between text-xs text-white/50 pb-3 border-b border-white/5">
-                        <span>Aktueller Flow</span>
+                        <span>Aktueller Bericht</span>
                         <span className="text-white/80 font-medium">
-                          {currentWorkflowName || 'Unbenannt'} · {currentNodes.length} Nodes
+                          {currentWorkflowName || 'Unbenannt'} · {stepCount} Schritte
                         </span>
                       </div>
 
@@ -594,7 +605,7 @@ export default function HubModal({ onClose, currentNodes, currentEdges, currentW
                       {/* Submit */}
                       <button
                         onClick={handlePublish}
-                        disabled={publishing || !pubTitle.trim() || !currentNodes.length}
+                        disabled={publishing || !pubTitle.trim() || !currentPipeline?.source}
                         className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         {publishing

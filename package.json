@@ -12,6 +12,10 @@
     "hub": "node hub-server.js",
     "hub:dev": "node --watch hub-server.js",
     "start": "node server.js",
+    "start:selfhost": "node selfhost-server.js",
+    "docker:build": "docker build -f Dockerfile.selfhost -t jtl-workflow-creator:latest .",
+    "docker:push": "docker tag jtl-workflow-creator:latest abdullahibdah/jtl-workflow-creator:latest && docker push abdullahibdah/jtl-workflow-creator:latest",
+    "docker:run": "docker run -p 3001:3001 -e HUB_URL=${HUB_URL:-} jtl-workflow-creator:latest",
     "dev:all": "concurrently --names \"bridge,hub,vite\" --prefix-colors \"cyan,magenta,green\" \"npm run server:dev\" \"npm run hub:dev\" \"wait-on http://localhost:3001/api/health http://localhost:3002/api/hub/health && npm run dev\"",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
@@ -50,7 +54,6 @@
     "mssql": "^12.2.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "reactflow": "^11.11.4",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.2"
   },

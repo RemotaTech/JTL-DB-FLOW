@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
@@ -9,10 +9,17 @@
                               keyboard appears (instead of overlapping it)
     -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
-    <title>JTL Wawi Workflow Creator</title>
+    <title>DBFLOW — JTL Report Builder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   </head>
-  <body style="background-color: #0d1117; color: white;">
+  <body style="background-color: #050505; color: white;">
     <div id="root"></div>
+    <script>
+      // Safety: reveal entrance content if CSS animations get throttled.
+      setTimeout(function () { document.documentElement.classList.add('anim-settled'); }, 1400);
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
