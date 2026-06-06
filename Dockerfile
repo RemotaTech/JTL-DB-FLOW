@@ -64,6 +64,11 @@ COPY hub ./hub
 COPY bridge ./bridge
 COPY server.js ./
 
+# Shared lib modules imported at runtime by the hub (e.g. hub/seed.js pulls in
+# src/lib/reportTemplates.js -> steps.js -> columns.js). These live under src/
+# but are plain ESM with no frontend deps, so they must ship to the runner too.
+COPY src/lib ./src/lib
+
 # Vite build output (served as static files)
 COPY --from=builder /app/dist ./dist
 
