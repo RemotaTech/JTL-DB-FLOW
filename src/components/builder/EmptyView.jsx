@@ -6,12 +6,54 @@ import React, { useState, useMemo } from 'react';
 import { Icon, Eyebrow, TextField, hexA, lighten, MONO } from './ui.jsx';
 import { availableTemplates, templateSteps } from '../../lib/reportTemplates.js';
 
-// Group tables by their schema prefix (`Amazon.tFoo` → "Amazon").
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+
+// Derive a logical category for a single table.
+// Non-dbo SQL schemas (Amazon, Verkauf, Rechnung…) are already meaningful, so
+// the schema name is the category. The `dbo` schema lumps 600+ tables together,
+// so we sub-categorise those by their JTL naming conventions:
+//   ebay_* → Ebay   ameise_* → Ameise   pf_amazon* → Amazon   pf_ebay* → Ebay
+//   pf_*   → Plugin  t<Entity>… → Entity (tArtikelShop → Artikel)
+//   acronym-prefixed (tWMS…/tRM…/tXML…) → the acronym (WMS, RM, XML)
+// Everything unrecognised falls into "Andere".
+function categoryOf(fullName) {
+  const hasSchema = fullName.includes('.');
+  const schema = hasSchema ? fullName.split('.')[0] : 'dbo';
+  if (schema.toLowerCase() !== 'dbo') return schema;
+
+  const base = hasSchema ? fullName.slice(fullName.indexOf('.') + 1) : fullName;
+
+  // lowercase integration prefixes (ebay_, ameise_, pf_amazon, …)
+  const lo = base.match(/^([a-z][a-z0-9]+)_/);
+  if (lo) {
+    if (lo[1] === 'pf') {
+      const sub = base.match(/^pf_([a-z0-9]+)/);
+      return sub ? cap(sub[1]) : 'Plugin';
+    }
+    return cap(lo[1]);
+  }
+
+  // strip the JTL table prefix `t` (tArtikel → Artikel, tkunde → Kunde)
+  let s = base;
+  if (/^t[A-ZÄÖÜ]/.test(s)) s = s.slice(1);
+  else if (/^t[a-zäöü]/.test(s)) s = cap(s.slice(1));
+
+  let m;
+  // leading uppercase acronym followed by another word or end (RMRetoure → RM, EAN → EAN)
+  if ((m = s.match(/^([A-ZÄÖÜ]{2,})(?=[A-ZÄÖÜ][a-zäöü]|$)/))) return m[1];
+  // first CamelCase word (ArtikelShop → Artikel)
+  if ((m = s.match(/^([A-ZÄÖÜ][a-zäöü0-9]+)/))) return m[1];
+  // pure-caps leftover (POS, XS)
+  if ((m = s.match(/^([A-ZÄÖÜ]+)/))) return m[1];
+  return 'Andere';
+}
+
+// Group tables into logical categories (see categoryOf).
 function groupBySchema(tables) {
   const map = {};
   for (const t of tables) {
-    const schema = t.name.includes('.') ? t.name.split('.')[0] : 'dbo';
-    (map[schema] = map[schema] || []).push(t.name);
+    const cat = categoryOf(t.name);
+    (map[cat] = map[cat] || []).push(t.name);
   }
   return map;
 }
@@ -134,15 +176,18 @@ function TableBrowser({ tables, onPick }) {
   const [q, setQ] = useState('');
 
   const groups = useMemo(() => groupBySchema(tables), [tables]);
-  const groupNames = useMemo(() => Object.keys(groups).sort((a, b) => a.localeCompare(b)), [groups]);
+  const groupNames = useMemo(() => Object.keys(groups).sort((a, b) => {
+    if (a === 'Andere') return 1;          // keep the catch-all last
+    if (b === 'Andere') return -1;
+    return a.localeCompare(b);
+  }), [groups]);
 
   const query = q.trim().toLowerCase();
-  // When searching, look across ALL schemas (ignore the selected category) so
-  // e.g. `dbo.tArtikel` is found even while the "Artikel" schema is selected.
+  // When searching, look across ALL categories (ignore the selected one) so
+  // e.g. `dbo.tArtikel` is found even while another category is selected.
   const visible = useMemo(() => tables.filter(t => {
     if (query) return t.name.toLowerCase().includes(query);
-    const schema = t.name.includes('.') ? t.name.split('.')[0] : 'dbo';
-    return active === '__all' || schema === active;
+    return active === '__all' || categoryOf(t.name) === active;
   }), [tables, active, query]);
 
   if (tables.length === 0) {
@@ -172,7 +217,7 @@ function TableBrowser({ tables, onPick }) {
     <div style={{ display: 'grid', gridTemplateColumns: '210px 1fr', gap: 16, alignItems: 'start' }}>
       {/* category sidebar */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: 8, borderRadius: 14, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)', maxHeight: 460, overflowY: 'auto', position: 'sticky', top: 12 }}>
-        <div style={{ padding: '4px 8px 8px' }}><Eyebrow>Schemata</Eyebrow></div>
+        <div style={{ padding: '4px 8px 8px' }}><Eyebrow>Kategorien</Eyebrow></div>
         {catBtn('__all', 'Alle Tabellen', tables.length)}
         {groupNames.map(g => catBtn(g, g, groups[g].length))}
       </div>
