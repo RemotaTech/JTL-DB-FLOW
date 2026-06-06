@@ -104,7 +104,10 @@ export function PipelineHeader({ steps }) {
 }
 
 // ─── Connector between cards ────────────────────────────────────────────────
-export function Connector({ terminal, onInsert }) {
+// join (Verknüpfung) may repeat; every other step type is single-instance.
+const isTaken = (type, steps) => type !== 'join' && steps.some(s => s.type === type);
+
+export function Connector({ terminal, onInsert, steps = [] }) {
   const [hover, setHover] = useState(false);
   const h = terminal ? 26 : 30;
   const lineColor = 'rgba(255,255,255,0.16)';
@@ -124,7 +127,8 @@ export function Connector({ terminal, onInsert }) {
           )}>
             {(close) => ADDABLE.map(type => {
               const m = STEP_META[type];
-              return <MenuItem key={type} icon={m.icon} iconColor={lighten(m.color)} onClick={() => { onInsert(type); close(); }}>{m.label}</MenuItem>;
+              const taken = isTaken(type, steps);
+              return <MenuItem key={type} icon={m.icon} iconColor={lighten(m.color)} disabled={taken} right={taken ? 'hinzugefügt' : undefined} onClick={() => { onInsert(type); close(); }}>{m.label}</MenuItem>;
             })}
           </Dropdown>
         </div>
@@ -134,7 +138,7 @@ export function Connector({ terminal, onInsert }) {
 }
 
 // ─── Add-step button (end of pipeline) ──────────────────────────────────────
-export function AddStepButton({ onAdd }) {
+export function AddStepButton({ onAdd, steps = [] }) {
   return (
     <Dropdown align="left" width={220} trigger={(open) => (
       <button style={{
@@ -153,7 +157,8 @@ export function AddStepButton({ onAdd }) {
     )}>
       {(close) => ADDABLE.map(type => {
         const m = STEP_META[type];
-        return <MenuItem key={type} icon={m.icon} iconColor={lighten(m.color)} onClick={() => { onAdd(type); close(); }}>{m.label}</MenuItem>;
+        const taken = isTaken(type, steps);
+        return <MenuItem key={type} icon={m.icon} iconColor={lighten(m.color)} disabled={taken} right={taken ? 'hinzugefügt' : undefined} onClick={() => { onAdd(type); close(); }}>{m.label}</MenuItem>;
       })}
     </Dropdown>
   );

@@ -99,6 +99,8 @@ export default function App() {
   const addStep = (type, atIndex) => {
     const ns = newStep(type);
     setSteps(s => {
+      // Single-instance guard: only 'join' (Verknüpfung) may appear more than once.
+      if (type !== 'join' && s.some(x => x.type === type)) return s;
       const next = [...s];
       if (atIndex == null) {
         // insert before a trailing "columns" step if present
@@ -270,7 +272,7 @@ export default function App() {
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {steps.map((s, i) => (
                 <React.Fragment key={s.id}>
-                  {i > 0 && <Connector onInsert={(type) => addStep(type, i)} />}
+                  {i > 0 && <Connector steps={steps} onInsert={(type) => addStep(type, i)} />}
                   <div className="step-enter" style={{ animationDelay: `${i * 0.04}s` }}>
                     <StepCard schema={schema} step={s} steps={steps} index={i}
                       onChange={(p) => patchStep(s.id, p)} onRemove={() => removeStep(s.id)}
@@ -279,7 +281,7 @@ export default function App() {
                 </React.Fragment>
               ))}
               {steps.length > 0 && <Connector terminal />}
-              <AddStepButton onAdd={(type) => addStep(type)} />
+              <AddStepButton steps={steps} onAdd={(type) => addStep(type)} />
             </div>
           </div>
 

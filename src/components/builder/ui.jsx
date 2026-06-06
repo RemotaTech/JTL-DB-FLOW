@@ -184,20 +184,22 @@ export function Dropdown({ trigger, children, align = 'left', width = 220 }) {
   );
 }
 
-export function MenuItem({ icon, iconColor, children, onClick, active, right, mono }) {
+export function MenuItem({ icon, iconColor, children, onClick, active, right, mono, disabled }) {
   const [hover, setHover] = useState(false);
   return (
-    <div onClick={onClick} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+    <div onClick={disabled ? undefined : onClick} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{
         display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 9,
-        cursor: 'pointer', fontSize: 13.5, fontFamily: mono ? MONO : 'inherit',
+        cursor: disabled ? 'not-allowed' : 'pointer', fontSize: 13.5, fontFamily: mono ? MONO : 'inherit',
+        opacity: disabled ? 0.4 : 1,
         color: active ? '#fff' : 'rgba(255,255,255,0.78)',
-        background: hover ? 'rgba(255,255,255,0.07)' : (active ? 'rgba(59,130,246,0.12)' : 'transparent'),
+        background: (hover && !disabled) ? 'rgba(255,255,255,0.07)' : (active ? 'rgba(59,130,246,0.12)' : 'transparent'),
         transition: 'background .12s',
       }}>
       {icon && <Icon name={icon} size={15} style={{ color: iconColor || 'rgba(255,255,255,0.5)' }} />}
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{children}</span>
       {active && <Icon name="check" size={14} style={{ color: '#3b82f6' }} />}
+      {disabled && <Icon name="check" size={14} style={{ color: 'rgba(255,255,255,0.45)' }} />}
       {right && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{right}</span>}
     </div>
   );
