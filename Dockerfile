@@ -44,8 +44,14 @@ ENV NODE_ENV=production
 # Alpine doesn't include it by default — install it explicitly.
 RUN apk add --no-cache openssl
 
-# Production dependencies only
-COPY package*.json ./
+# Production dependencies only.
+# Copy package-lock.json *from the builder stage* (instead of the build context)
+# so BuildKit treats this runner stage as dependent on `builder` and runs the
+# two stages sequentially rather than in parallel. Running both npm installs +
+# the Vite/Rolldown native build concurrently spikes peak RAM and OOM-kills the
+# build on small hosts; serialising them halves the peak memory.
+COPY package.json ./
+COPY --from=builder /app/package-lock.json ./package-lock.json
 RUN npm ci --omit=dev --prefer-offline
 
 # Prisma: schema + generated client

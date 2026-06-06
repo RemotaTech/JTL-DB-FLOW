@@ -137,11 +137,12 @@ function TableBrowser({ tables, onPick }) {
   const groupNames = useMemo(() => Object.keys(groups).sort((a, b) => a.localeCompare(b)), [groups]);
 
   const query = q.trim().toLowerCase();
+  // When searching, look across ALL schemas (ignore the selected category) so
+  // e.g. `dbo.tArtikel` is found even while the "Artikel" schema is selected.
   const visible = useMemo(() => tables.filter(t => {
+    if (query) return t.name.toLowerCase().includes(query);
     const schema = t.name.includes('.') ? t.name.split('.')[0] : 'dbo';
-    if (active !== '__all' && schema !== active) return false;
-    if (query && !t.name.toLowerCase().includes(query)) return false;
-    return true;
+    return active === '__all' || schema === active;
   }), [tables, active, query]);
 
   if (tables.length === 0) {
@@ -183,7 +184,7 @@ function TableBrowser({ tables, onPick }) {
             <TextField value={q} onChange={setQ} placeholder="Tabelle suchen…" icon="search" />
           </div>
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontFamily: MONO, whiteSpace: 'nowrap' }}>
-            {visible.length} {visible.length === 1 ? 'Tabelle' : 'Tabellen'}
+            {visible.length} {visible.length === 1 ? 'Tabelle' : 'Tabellen'}{query ? ' · alle Schemata' : ''}
           </span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10, maxHeight: 420, overflowY: 'auto', paddingRight: 4 }}>
