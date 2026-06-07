@@ -69,7 +69,7 @@ export default function App() {
   const scrollRef = useRef(null);
 
   // ── generated SQL ────────────────────────────────────────────────────────
-  const generatedSql = useMemo(() => stepsToSql(steps, vars), [steps, vars]);
+  const generatedSql = useMemo(() => stepsToSql(steps, vars, schema), [steps, vars, schema]);
 
   // ── effects: config + schema ─────────────────────────────────────────────
   useEffect(() => {
@@ -102,12 +102,20 @@ export default function App() {
       // Single-instance guard: only 'join' (Verknüpfung) may appear more than once.
       if (type !== 'join' && s.some(x => x.type === type)) return s;
       const next = [...s];
-      if (atIndex == null) {
-        // insert before a trailing "columns" step if present
+      const fi = next.findIndex(x => x.type === 'format'); // Formatierung stays last
+      if (type === 'format') {
+        next.push(ns); // always append the format step at the very end
+      } else if (atIndex == null) {
+        // insert before a trailing "columns" step, and always before "format"
+        let at = next.length;
+        if (fi >= 0) at = fi;
         const ci = next.findIndex(x => x.type === 'columns');
-        if (ci >= 0 && type !== 'columns') next.splice(ci, 0, ns);
-        else next.push(ns);
-      } else next.splice(atIndex, 0, ns);
+        if (type !== 'columns' && ci >= 0 && ci < at) at = ci;
+        next.splice(at, 0, ns);
+      } else {
+        // explicit position, but never after the format step
+        next.splice(fi >= 0 ? Math.min(atIndex, fi) : atIndex, 0, ns);
+      }
       return next;
     });
   };
@@ -153,7 +161,7 @@ export default function App() {
     setView('builder');
     setResults([]); setError(null);
     // auto-run the template against the live DB
-    setTimeout(() => executeQuery(stepsToSql(built, vars)), 200);
+    setTimeout(() => executeQuery(stepsToSql(built, vars, schema)), 200);
   };
   const startBlank = (table) => {
     setTitle('Neuer Bericht');
@@ -174,7 +182,7 @@ export default function App() {
     setSourceHubId(full.id); setCurrentLocalId(null);
     setView('builder');
     setResults([]); setError(null);
-    setTimeout(() => executeQuery(stepsToSql(built, v)), 200);
+    setTimeout(() => executeQuery(stepsToSql(built, v, schema)), 200);
   };
 
   const openLocal = (r) => {

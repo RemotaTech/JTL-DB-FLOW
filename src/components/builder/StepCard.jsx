@@ -61,8 +61,8 @@ function OptionList({ options, value, onChange, close, mono, renderItem }) {
   );
 }
 
-function FieldPicker({ schema, steps, value, onChange, color, placeholder = 'Feld wählen' }) {
-  const fields = availableFields(schema, steps);
+function FieldPicker({ schema, steps, value, onChange, color, placeholder = 'Feld wählen', fields: fieldsOverride }) {
+  const fields = fieldsOverride || availableFields(schema, steps);
   const cur = fields.find(f => f.value === value);
   const curParts = cur ? splitQualified(cur.value) : null;
   return (
@@ -447,6 +447,13 @@ function JoinToggle({ value, onChange, color }) {
 
 function FormatBody({ schema, step, steps, onChange, color }) {
   const items = step.items || [];
+
+  // Formatierung operates on the fields chosen in Spalten (all if none selected).
+  const colsStep = steps.find(s => s.type === 'columns');
+  const allFields = availableFields(schema, steps);
+  const visible = colsStep ? (colsStep.visible || []) : [];
+  const scopedFields = visible.length ? allFields.filter(f => visible.includes(f.value)) : allFields;
+
   const setItem = (i, patch) => onChange({ items: items.map((it, idx) => idx === i ? { ...it, ...patch } : it) });
   const removeItem = (i) => onChange({ items: items.filter((_, idx) => idx !== i) });
   const addItem = () => onChange({ items: [...items, newFormatItem()] });
@@ -469,7 +476,7 @@ function FormatBody({ schema, step, steps, onChange, color }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
               {!hasRules && <>
                 <span style={bodyLabel}>Feld</span>
-                <FieldPicker schema={schema} steps={steps} value={it.field} color={color} onChange={(v) => setItem(i, { field: v })} />
+                <FieldPicker schema={schema} steps={steps} fields={scopedFields} value={it.field} color={color} onChange={(v) => setItem(i, { field: v })} />
               </>}
               <span style={bodyLabel}>{hasRules ? 'Neue Spalte' : 'Anzeigen als'}</span>
               {aliasInput(it.as, (v) => setItem(i, { as: v }), color, hasRules ? 'Spaltenname' : 'Neuer Name')}
@@ -485,7 +492,7 @@ function FormatBody({ schema, step, steps, onChange, color }) {
                   {(r.conds || []).map((c, ci) => (
                     <React.Fragment key={ci}>
                       {ci > 0 && <JoinToggle value={r.join} onChange={(j) => setRule(i, ri, { join: j })} color={color} />}
-                      <FieldPicker schema={schema} steps={steps} value={c.field} color={color} onChange={(v) => setCond(i, ri, ci, { field: v })} />
+                      <FieldPicker schema={schema} steps={steps} fields={scopedFields} value={c.field} color={color} onChange={(v) => setCond(i, ri, ci, { field: v })} />
                       <SimplePicker color={color} width={150} value={c.op} options={OP_OPTS} render={(v) => OP_LABEL[v] || v} onChange={(v) => setCond(i, ri, ci, { op: v })} />
                       <ValueInput value={c.value} onChange={(v) => setCond(i, ri, ci, { value: v })} />
                       {(r.conds.length > 1) && <button onClick={() => removeCond(i, ri, ci)} style={iconBtn}><Icon name="x" size={14} /></button>}

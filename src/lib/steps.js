@@ -163,7 +163,7 @@ function formatItemSql(item, vars) {
  * @param {Array} steps
  * @param {Array} vars  - [{ name, value }]
  */
-export function stepsToSql(steps, vars = []) {
+export function stepsToSql(steps, vars = [], schema = null) {
   const src = steps.find(s => s.type === 'source');
   if (!src || !src.table) return '';
 
@@ -173,11 +173,11 @@ export function stepsToSql(steps, vars = []) {
   const sorts   = steps.filter(s => s.type === 'sort');
   const colsStep = steps.find(s => s.type === 'columns');
   const fmtStep = steps.find(s => s.type === 'format');
-  const fmtCols = fmtStep ? (fmtStep.items || []).map(it => formatItemSql(it, vars)).filter(Boolean) : [];
 
-  // SELECT list. Precedence: group → format → columns → *.
-  // Formatierung defines its own output columns (rename + computed) and so
-  // supersedes the plain Spalten list when both are present.
+  // SELECT list. Spalten picks the columns (or all if none); Formatierung — the
+  // last step — renames those columns and/or appends computed Wenn-Dann columns.
+  // Aggregation (Gruppierung) defines its own output and takes precedence.
+  const colExpr = (c) => (c.includes('.') ? fmtId(c) : `[${c}]`);
   const select = [];
   if (group) {
     (group.by || []).forEach(b => select.push('  ' + fmtId(b)));
@@ -185,12 +185,29 @@ export function stepsToSql(steps, vars = []) {
       const inner = m.field ? fmtId(m.field) : '*';
       select.push(`  ${AGG_SQL[m.agg] || 'COUNT'}(${inner}) AS [${m.as || m.agg}]`);
     });
-  } else if (fmtCols.length) {
-    fmtCols.forEach(c => select.push('  ' + c));
-  } else if (colsStep && (colsStep.visible || []).length) {
-    colsStep.visible.forEach(c => select.push('  ' + (c.includes('.') ? fmtId(c) : `[${c}]`)));
   } else {
-    select.push('  *');
+    // base columns = Spalten selection, or null = "all"
+    const baseCols = (colsStep && (colsStep.visible || []).length) ? colsStep.visible : null;
+
+    // split Formatierung items into renames (field → alias) and computed CASE columns
+    const renames = new Map();
+    const computed = [];
+    (fmtStep?.items || []).forEach(it => {
+      const hasRules = (it.rules || []).some(r => (r.conds || []).some(c => c.field));
+      if (hasRules) { const e = formatItemSql(it, vars); if (e) computed.push(e); }
+      else if (it.field && it.as && it.as.trim()) renames.set(it.field, it.as.trim());
+    });
+
+    const emit = (c) => select.push('  ' + (renames.has(c) ? `${colExpr(c)} AS [${renames.get(c)}]` : colExpr(c)));
+    if (baseCols) {
+      baseCols.forEach(emit);
+    } else if (renames.size && schema) {
+      // no Spalten but renames exist → enumerate all fields so aliases apply
+      availableFields(schema, steps).forEach(f => emit(f.value));
+    } else {
+      select.push('  *');
+    }
+    computed.forEach(e => select.push('  ' + e));
   }
   if (!select.length) select.push('  *');
 
