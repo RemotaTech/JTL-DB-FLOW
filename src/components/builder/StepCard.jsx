@@ -8,7 +8,8 @@ import {
   Icon, Eyebrow, Chip, Dropdown, MenuItem, hexA, lighten, MONO,
 } from './ui.jsx';
 import {
-  STEP_META, OPERATORS, AGGREGATES, availableFields, groupOutputs, stepsTables,
+  STEP_META, OPERATORS, OP_LABEL, AGGREGATES, availableFields, groupOutputs, stepsTables,
+  newFormatItem, newFormatRule,
 } from '../../lib/steps.js';
 import { outgoingJoins } from '../../lib/relationships.js';
 
@@ -420,7 +421,105 @@ function ColumnGroup({ group, visible, explicit, color, toggle }) {
   );
 }
 
-const BODIES = { source: SourceBody, join: JoinBody, filter: FilterBody, group: GroupBody, sort: SortBody, columns: ColumnsBody };
+// ─── Formatierung: rename fields + Wenn-Dann (CASE) computed columns ─────────
+const OP_OPTS = OPERATORS.map(o => ({ value: o, label: OP_LABEL[o] || o }));
+
+function aliasInput(value, onChange, color, placeholder) {
+  return (
+    <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+      style={{ width: 160, height: 34, padding: '0 11px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: lighten(color), fontSize: 13, fontWeight: 550, fontFamily: 'inherit', outline: 'none' }} />
+  );
+}
+
+function JoinToggle({ value, onChange, color }) {
+  return (
+    <div style={{ display: 'flex', gap: 3, padding: 3, background: 'rgba(255,255,255,0.04)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
+      {['UND', 'ODER'].map(j => (
+        <button key={j} onClick={() => onChange(j)} style={{
+          padding: '3px 9px', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: 600, fontFamily: 'inherit', transition: 'all .14s',
+          background: (value || 'UND') === j ? hexA(color, 0.2) : 'transparent',
+          color: (value || 'UND') === j ? lighten(color) : 'rgba(255,255,255,0.45)',
+        }}>{j}</button>
+      ))}
+    </div>
+  );
+}
+
+function FormatBody({ schema, step, steps, onChange, color }) {
+  const items = step.items || [];
+  const setItem = (i, patch) => onChange({ items: items.map((it, idx) => idx === i ? { ...it, ...patch } : it) });
+  const removeItem = (i) => onChange({ items: items.filter((_, idx) => idx !== i) });
+  const addItem = () => onChange({ items: [...items, newFormatItem()] });
+
+  const setRule = (i, ri, patch) => setItem(i, { rules: (items[i].rules || []).map((r, idx) => idx === ri ? { ...r, ...patch } : r) });
+  const addRule = (i) => setItem(i, { rules: [...(items[i].rules || []), newFormatRule()] });
+  const removeRule = (i, ri) => setItem(i, { rules: (items[i].rules || []).filter((_, idx) => idx !== ri) });
+  const setCond = (i, ri, ci, patch) => { const r = items[i].rules[ri]; setRule(i, ri, { conds: (r.conds || []).map((c, idx) => idx === ci ? { ...c, ...patch } : c) }); };
+  const addCond = (i, ri) => { const r = items[i].rules[ri]; setRule(i, ri, { conds: [...(r.conds || []), { field: '', op: '=', value: '' }] }); };
+  const removeCond = (i, ri, ci) => { const r = items[i].rules[ri]; setRule(i, ri, { conds: (r.conds || []).filter((_, idx) => idx !== ci) }); };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {items.map((it, i) => {
+        const rules = it.rules || [];
+        const hasRules = rules.length > 0;
+        return (
+          <div key={it.id || i} style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 12, borderRadius: 13, background: 'rgba(255,255,255,0.022)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            {/* header: field (rename) + display name */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+              {!hasRules && <>
+                <span style={bodyLabel}>Feld</span>
+                <FieldPicker schema={schema} steps={steps} value={it.field} color={color} onChange={(v) => setItem(i, { field: v })} />
+              </>}
+              <span style={bodyLabel}>{hasRules ? 'Neue Spalte' : 'Anzeigen als'}</span>
+              {aliasInput(it.as, (v) => setItem(i, { as: v }), color, hasRules ? 'Spaltenname' : 'Neuer Name')}
+              <div style={{ flex: 1 }} />
+              <button onClick={() => removeItem(i)} style={iconBtn} title="Entfernen"><Icon name="trash" size={15} /></button>
+            </div>
+
+            {/* Wenn-Dann rules */}
+            {rules.map((r, ri) => (
+              <div key={ri} style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 10, borderLeft: `2px solid ${hexA(color, 0.3)}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ ...bodyLabel, color: lighten(color), fontWeight: 600 }}>{ri === 0 ? 'Wenn' : 'Sonst wenn'}</span>
+                  {(r.conds || []).map((c, ci) => (
+                    <React.Fragment key={ci}>
+                      {ci > 0 && <JoinToggle value={r.join} onChange={(j) => setRule(i, ri, { join: j })} color={color} />}
+                      <FieldPicker schema={schema} steps={steps} value={c.field} color={color} onChange={(v) => setCond(i, ri, ci, { field: v })} />
+                      <SimplePicker color={color} width={150} value={c.op} options={OP_OPTS} render={(v) => OP_LABEL[v] || v} onChange={(v) => setCond(i, ri, ci, { op: v })} />
+                      <ValueInput value={c.value} onChange={(v) => setCond(i, ri, ci, { value: v })} />
+                      {(r.conds.length > 1) && <button onClick={() => removeCond(i, ri, ci)} style={iconBtn}><Icon name="x" size={14} /></button>}
+                    </React.Fragment>
+                  ))}
+                  <button onClick={() => addCond(i, ri)} style={addRow(color)}><Icon name="plus" size={13} /> und / oder</button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+                  <span style={{ ...bodyLabel, color: lighten(color), fontWeight: 600 }}>dann</span>
+                  {aliasInput(r.then, (v) => setRule(i, ri, { then: v }), color, 'Ausgabe-Text')}
+                  <button onClick={() => removeRule(i, ri)} style={iconBtn} title="Regel entfernen"><Icon name="trash" size={14} /></button>
+                </div>
+              </div>
+            ))}
+
+            {hasRules && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                <span style={bodyLabel}>Sonst</span>
+                {aliasInput(it.otherwise, (v) => setItem(i, { otherwise: v }), color, 'Standard-Text')}
+              </div>
+            )}
+
+            <button onClick={() => addRule(i)} style={addRow(color)}>
+              <Icon name="plus" size={14} /> {hasRules ? 'weitere Regel' : 'Wenn-Dann-Regel'}
+            </button>
+          </div>
+        );
+      })}
+      <button onClick={addItem} style={addRow(color)}><Icon name="plus" size={14} /> Spalte hinzufügen</button>
+    </div>
+  );
+}
+
+const BODIES = { source: SourceBody, join: JoinBody, filter: FilterBody, group: GroupBody, sort: SortBody, columns: ColumnsBody, format: FormatBody };
 
 // ─── the card ───────────────────────────────────────────────────────────────
 export default function StepCard({ schema, step, steps, index, onChange, onRemove, canRemove }) {

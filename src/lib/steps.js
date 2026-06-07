@@ -26,14 +26,18 @@ export const STEP_META = {
   group:   { label: 'Gruppierung',  color: '#f43f5e', icon: 'layers'   },
   sort:    { label: 'Sortierung',   color: '#06b6d4', icon: 'sort'     },
   columns: { label: 'Spalten',      color: '#10b981', icon: 'columns'  },
+  format:  { label: 'Formatierung', color: '#ec4899', icon: 'pencil'   },
 };
 
 // Steps the user can append/insert (source is implicit / always first).
-export const ADDABLE = ['join', 'filter', 'group', 'sort', 'columns'];
+export const ADDABLE = ['join', 'filter', 'group', 'sort', 'columns', 'format'];
 
 // ─── Operators + aggregates ─────────────────────────────────────────────────
 export const OPERATORS = ['=', '≠', '>', '<', '≥', '≤', 'enthält'];
 const OP_SQL = { '=': '=', '≠': '<>', '>': '>', '<': '<', '≥': '>=', '≤': '<=', 'enthält': 'LIKE' };
+
+// Plain-German operator labels for the non-technical builder UI.
+export const OP_LABEL = { '=': 'ist gleich', '≠': 'ist nicht', '>': 'größer als', '<': 'kleiner als', '≥': 'mindestens', '≤': 'höchstens', 'enthält': 'enthält' };
 
 export const AGGREGATES = ['Anzahl', 'Summe', 'Durchschnitt', 'Minimum', 'Maximum'];
 const AGG_SQL = { Anzahl: 'COUNT', Summe: 'SUM', Durchschnitt: 'AVG', Minimum: 'MIN', Maximum: 'MAX' };
@@ -49,7 +53,17 @@ export function newStep(type) {
   if (type === 'group')   return { ...base, by: [], metrics: [{ agg: 'Anzahl', field: '', as: 'Anzahl' }] };
   if (type === 'sort')    return { ...base, by: '', dir: 'desc' };
   if (type === 'columns') return { ...base, visible: [] };
+  if (type === 'format')  return { ...base, items: [newFormatItem()] };
   return base; // source — table assigned by caller
+}
+
+/** A single Formatierung output column: rename a field and/or compute via rules. */
+export function newFormatItem() {
+  return { id: uid(), field: '', as: '', rules: [], otherwise: '' };
+}
+/** A single Wenn-Dann rule → one CASE WHEN branch. */
+export function newFormatRule() {
+  return { conds: [{ field: '', op: '=', value: '' }], join: 'UND', then: '' };
 }
 
 // ─── Derived helpers ────────────────────────────────────────────────────────
@@ -114,6 +128,36 @@ function resolveValue(value, op, vars) {
   return `'${str.replace(/'/g, "''")}'`;
 }
 
+/** Resolve a Formatierung output value (THEN/ELSE) to SQL: @var, number or string. */
+function outputLiteral(value, vars) {
+  if (typeof value === 'string' && value.startsWith('@')) {
+    const v = (vars || []).find(x => '@' + x.name === value);
+    return v ? v.value : `'${value.replace(/'/g, "''")}'`;
+  }
+  const str = String(value ?? '');
+  if (str === '') return "''";
+  if (isNumeric(str)) return String(Number(str));
+  return `'${str.replace(/'/g, "''")}'`;
+}
+
+/** One Formatierung column → a SELECT expression (rename or CASE), or null. */
+function formatItemSql(item, vars) {
+  const alias = (item.as && item.as.trim()) || (item.field ? String(item.field).split('.').pop() : 'Spalte');
+  const rules = (item.rules || []).filter(r => (r.conds || []).some(c => c.field));
+  if (rules.length === 0) {
+    return item.field ? `${fmtId(item.field)} AS [${alias}]` : null;
+  }
+  const whens = rules.map(r => {
+    const joiner = r.join === 'ODER' ? ' OR ' : ' AND ';
+    const preds = (r.conds || []).filter(c => c.field)
+      .map(c => `${fmtId(c.field)} ${OP_SQL[c.op] || c.op} ${resolveValue(c.value, c.op, vars)}`);
+    const cond = preds.length > 1 ? `(${preds.join(joiner)})` : preds[0];
+    return `WHEN ${cond} THEN ${outputLiteral(r.then, vars)}`;
+  });
+  const elsePart = (item.otherwise != null && String(item.otherwise) !== '') ? ` ELSE ${outputLiteral(item.otherwise, vars)}` : '';
+  return `CASE ${whens.join(' ')}${elsePart} END AS [${alias}]`;
+}
+
 /**
  * Generate T-SQL from the step pipeline.
  * @param {Array} steps
@@ -128,8 +172,12 @@ export function stepsToSql(steps, vars = []) {
   const group   = steps.find(s => s.type === 'group');
   const sorts   = steps.filter(s => s.type === 'sort');
   const colsStep = steps.find(s => s.type === 'columns');
+  const fmtStep = steps.find(s => s.type === 'format');
+  const fmtCols = fmtStep ? (fmtStep.items || []).map(it => formatItemSql(it, vars)).filter(Boolean) : [];
 
-  // SELECT list
+  // SELECT list. Precedence: group → format → columns → *.
+  // Formatierung defines its own output columns (rename + computed) and so
+  // supersedes the plain Spalten list when both are present.
   const select = [];
   if (group) {
     (group.by || []).forEach(b => select.push('  ' + fmtId(b)));
@@ -137,6 +185,8 @@ export function stepsToSql(steps, vars = []) {
       const inner = m.field ? fmtId(m.field) : '*';
       select.push(`  ${AGG_SQL[m.agg] || 'COUNT'}(${inner}) AS [${m.as || m.agg}]`);
     });
+  } else if (fmtCols.length) {
+    fmtCols.forEach(c => select.push('  ' + c));
   } else if (colsStep && (colsStep.visible || []).length) {
     colsStep.visible.forEach(c => select.push('  ' + (c.includes('.') ? fmtId(c) : `[${c}]`)));
   } else {
