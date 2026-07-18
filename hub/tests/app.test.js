@@ -2,7 +2,7 @@
  * Hub server route tests.
  * Prisma client is mocked — no real DB connection required.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import request from 'supertest';
 
 // ── Mock @prisma/client BEFORE importing app ───────────────────────────────
@@ -138,7 +138,7 @@ describe('POST /api/hub/flows', () => {
     title: 'My Workflow',
     description: 'Sells stuff',
     tags: 'sales;orders',
-    flowData: { nodes: [{ id: 'n1' }], edges: [] },
+    flowData: { steps: [{ type: 'source', table: 'dbo.tArtikel' }] },
     author: 'Bob',
   };
 
@@ -164,10 +164,18 @@ describe('POST /api/hub/flows', () => {
     expect(res.body.error).toMatch(/flowData/i);
   });
 
-  it('returns 400 when flowData has no nodes array', async () => {
+  it('returns 400 when flowData has no steps array', async () => {
     const res = await request(app).post('/api/hub/flows').send({
       title: 'Test',
-      flowData: { notNodes: true },
+      flowData: { notSteps: true },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when flowData has no source step', async () => {
+    const res = await request(app).post('/api/hub/flows').send({
+      title: 'Test',
+      flowData: { steps: [{ type: 'filter' }] },
     });
     expect(res.status).toBe(400);
   });
@@ -184,7 +192,7 @@ describe('POST /api/hub/flows', () => {
   it('defaults author to Anonymous when not provided', async () => {
     await request(app).post('/api/hub/flows').send({
       title: 'No Author',
-      flowData: { nodes: [], edges: [] },
+      flowData: { steps: [{ type: 'source', table: 'dbo.tArtikel' }] },
     });
     const createArg = mockPrisma.flow.create.mock.calls.at(-1)[0];
     expect(createArg.data.author).toBe('Anonymous');
@@ -221,9 +229,25 @@ describe('POST /api/hub/flows/:id/download', () => {
 // ─── DELETE /api/hub/flows/:id ─────────────────────────────────────────────
 
 describe('DELETE /api/hub/flows/:id', () => {
+  const ADMIN_KEY = 'test-admin-key';
+  const prevKey = process.env.HUB_ADMIN_KEY;
+  beforeEach(() => { process.env.HUB_ADMIN_KEY = ADMIN_KEY; });
+  afterAll(() => { process.env.HUB_ADMIN_KEY = prevKey; });
+
+  it('returns 503 when HUB_ADMIN_KEY is not configured', async () => {
+    delete process.env.HUB_ADMIN_KEY;
+    const res = await request(app).delete('/api/hub/flows/cuid123');
+    expect(res.status).toBe(503);
+  });
+
+  it('returns 401 without a matching x-admin-key header', async () => {
+    const res = await request(app).delete('/api/hub/flows/cuid123');
+    expect(res.status).toBe(401);
+  });
+
   it('deletes a flow and returns success', async () => {
     mockPrisma.flow.delete.mockResolvedValue(sampleFlow);
-    const res = await request(app).delete('/api/hub/flows/cuid123');
+    const res = await request(app).delete('/api/hub/flows/cuid123').set('x-admin-key', ADMIN_KEY);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
   });
@@ -232,7 +256,7 @@ describe('DELETE /api/hub/flows/:id', () => {
     const err = new Error('Not found');
     err.code = 'P2025';
     mockPrisma.flow.delete.mockRejectedValue(err);
-    const res = await request(app).delete('/api/hub/flows/bad-id');
+    const res = await request(app).delete('/api/hub/flows/bad-id').set('x-admin-key', ADMIN_KEY);
     expect(res.status).toBe(404);
   });
 });
