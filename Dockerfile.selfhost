@@ -24,8 +24,8 @@ RUN npm install --prefer-offline
 
 COPY . .
 
-# Bake DATABASE_URL so Prisma generate works at build time
-ENV DATABASE_URL="postgres://postgres:0OL1Mr5WizijwctaIB3kPo5Im2srvX9k8N9aUxVWXA7hxzreITdOBxa6Aupn22ty@91.99.165.255:5432/postgres"
+# Prisma generate only needs a syntactically valid URL, no live DB connection
+ENV DATABASE_URL="postgresql://user:pass@localhost:5432/db"
 RUN npx prisma generate
 
 # VITE_BRIDGE_URL='' = same-origin (bridge served on same Express app)
@@ -61,8 +61,7 @@ COPY versions ./versions
 # Built frontend
 COPY --from=builder /app/dist ./dist
 
-# Hardcoded — points to the developer's Postgres instance. Read-only from user POV.
-ENV DATABASE_URL="postgres://postgres:0OL1Mr5WizijwctaIB3kPo5Im2srvX9k8N9aUxVWXA7hxzreITdOBxa6Aupn22ty@91.99.165.255:5432/postgres"
+# DATABASE_URL is required at runtime — pass it via `docker run -e DATABASE_URL=...`
 ENV PORT=3001
 
 EXPOSE 3001

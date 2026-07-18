@@ -542,7 +542,6 @@ export default function StepCard({ schema, step, steps, index, onChange, onRemov
         boxShadow: hover ? '0 20px 50px -20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06)' : '0 14px 40px -22px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)',
         backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', transition: 'box-shadow .2s, transform .2s', overflow: 'hidden',
       }}>
-      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: `linear-gradient(180deg, ${meta.color}, ${hexA(meta.color, 0.3)})` }} />
       <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(120% 80% at 0% 0%, ${hexA(meta.color, 0.06)}, transparent 50%)`, pointerEvents: 'none' }} />
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, position: 'relative' }}>
         <div style={{

@@ -11,8 +11,6 @@ import { STEP_META, ADDABLE } from '../../lib/steps.js';
 export function BgFX() {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 0, overflow: 'hidden', pointerEvents: 'none' }}>
-      <div style={{ position: 'absolute', top: '-12%', left: '12%', width: 620, height: 620, borderRadius: '50%', background: 'radial-gradient(circle, rgba(59,130,246,0.16), transparent 68%)', filter: 'blur(30px)' }} />
-      <div style={{ position: 'absolute', bottom: '-18%', right: '6%', width: 560, height: 560, borderRadius: '50%', background: 'radial-gradient(circle, rgba(168,85,247,0.11), transparent 70%)', filter: 'blur(30px)' }} />
       <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(255,255,255,0.025) 1px, transparent 1px)', backgroundSize: '34px 34px', maskImage: 'radial-gradient(ellipse 70% 60% at 50% 30%, #000, transparent)', WebkitMaskImage: 'radial-gradient(ellipse 70% 60% at 50% 30%, #000, transparent)' }} />
     </div>
   );

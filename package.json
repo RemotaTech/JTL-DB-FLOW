@@ -1,5 +1,5 @@
 {
-  "name": "jtl-workflow-creator",
+  "name": "jtl-db-flow",
   "version": "1.0.0",
   "description": "Visual SQL workflow builder for JTL-WAWI databases",
   "type": "module",
@@ -35,8 +35,8 @@
     "react-flow",
     "mssql"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "Remota Tech <info@remotatech.com> (https://remotatech.com)",
+  "license": "SEE LICENSE IN LICENSE.md",
   "dependencies": {
     "@prisma/client": "^5.22.0",
     "@tailwindcss/vite": "^4.2.2",

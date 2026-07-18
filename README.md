@@ -1,5 +1,10 @@
 # JTL Workflow Creator
 
+![DBFLOW](dbFlow.png)
+
+[![Tests](https://github.com/abdullahIbdah/JTL-FLOW/actions/workflows/test.yml/badge.svg)](https://github.com/abdullahIbdah/JTL-FLOW/actions/workflows/test.yml)
+[![License](https://img.shields.io/badge/license-Sustainable%20Use-blue)](LICENSE.md)
+
 A **visual SQL query builder** for JTL-WAWI databases. Connect nodes together to construct complex SQL queries without writing a single line of code — then run them against your own MSSQL database.
 
 Ships with a **Community Hub** where users can publish and discover shared workflows, backed by a PostgreSQL database via Prisma.
@@ -286,6 +291,19 @@ Set `DATABASE_URL` as an environment variable on the hub host. No MSSQL credenti
 
 ---
 
+## Docker
+
+Self-hosted image (frontend + MSSQL bridge + hub, all in one container). Build and run locally:
+
+```bash
+npm run docker:build
+DATABASE_URL="postgresql://user:pass@host:5432/db" npm run docker:run
+```
+
+`DATABASE_URL` is required at runtime — it's the Community Hub's PostgreSQL connection string, not baked into the image. See [prisma/schema.prisma](prisma/schema.prisma).
+
+---
+
 ## Project Structure
 
 ```
@@ -333,4 +351,10 @@ jtl-workflow-creator/
 
 ## License
 
-ISC
+Source-available under the [Sustainable Use License](LICENSE.md) — free for personal and internal commercial use (including building products/services on top of it). Reselling, redistributing, or offering it as a competing hosted service to third parties is not permitted. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
+## Maintained by
+
+**[Remota Tech](https://remotatech.com)** — [info@remotatech.com](mailto:info@remotatech.com)

@@ -67,10 +67,6 @@ export default function EmptyView({ schema, onTemplate, onBlank, onOpenCommunity
   return (
     <div style={{ maxWidth: 1080, margin: '0 auto', padding: '76px 32px 120px' }}>
       <div className="fade-up" style={{ textAlign: 'center', marginBottom: 40 }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px', borderRadius: 999, background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)', marginBottom: 22, whiteSpace: 'nowrap' }}>
-          <Icon name="sparkles" size={13} style={{ color: '#60a5fa' }} />
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#93c5fd', letterSpacing: '0.01em' }}>Berichte ohne SQL — einfach zusammenklicken</span>
-        </div>
         <h1 style={{ fontSize: 42, fontWeight: 600, letterSpacing: '-0.025em', margin: '0 0 14px', lineHeight: 1.08 }}>Was möchten Sie auswerten?</h1>
         <p style={{ fontSize: 16.5, color: 'rgba(255,255,255,0.5)', margin: 0, maxWidth: 540, marginInline: 'auto', lineHeight: 1.5 }}>
           Wählen Sie eine Vorlage oder starten Sie leer. DBFLOW baut die Abfrage für Ihre JTL-Wawi Schritt für Schritt auf.
