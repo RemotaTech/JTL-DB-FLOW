@@ -39,13 +39,31 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '5mb' }));
 
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 300,
+  windowMs: 60 * 1000,
+  max: 50,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' },
 });
 app.use(limiter);
+
+// Stricter limiter for publishing — global limiter above is for browsing/reads.
+const publishLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many flows published from this address — try again later.' },
+});
+
+// Gate destructive/admin actions behind a shared secret. Set HUB_ADMIN_KEY in
+// the environment; without it, the route is disabled entirely (fails closed).
+function requireAdminKey(req, res, next) {
+  const key = process.env.HUB_ADMIN_KEY;
+  if (!key) return res.status(503).json({ error: 'Admin actions are disabled on this hub' });
+  if (req.get('x-admin-key') !== key) return res.status(401).json({ error: 'Unauthorized' });
+  next();
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -178,7 +196,7 @@ app.get('/api/hub/flows/:id', async (req, res) => {
  * Body: { title, description?, tags, icon?, color?, flowData: { steps, vars? }, author? }
  * Tags are semicolon-separated (e.g. "umsatz;kunden;aufträge").
  */
-app.post('/api/hub/flows', async (req, res) => {
+app.post('/api/hub/flows', publishLimiter, async (req, res) => {
   try {
     const { title, description, tags, icon, color, flowData, author } = req.body;
 
@@ -263,7 +281,7 @@ app.post('/api/hub/flows/:id/execute', async (req, res) => {
  * DELETE /api/hub/flows/:id
  * Deletes a flow by id.
  */
-app.delete('/api/hub/flows/:id', async (req, res) => {
+app.delete('/api/hub/flows/:id', requireAdminKey, async (req, res) => {
   try {
     await prisma.flow.delete({ where: { id: req.params.id } });
     res.json({ success: true });

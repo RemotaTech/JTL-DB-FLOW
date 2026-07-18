@@ -13,6 +13,11 @@ export default defineConfig(({ mode }) => ({
     'import.meta.env.VITE_BRIDGE_URL': JSON.stringify(
       process.env.VITE_BRIDGE_URL ?? ''
     ),
+    // Base URL for the Community Hub API. '' = same origin (default).
+    // Set to point at a hosted hub when running the frontend standalone.
+    'import.meta.env.VITE_HUB_URL': JSON.stringify(
+      process.env.VITE_HUB_URL ?? ''
+    ),
   },
 
   server: {

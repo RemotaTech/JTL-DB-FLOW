@@ -156,6 +156,17 @@ Tags are **semicolon-separated** strings, e.g.:
 sales;orders;customers;2024
 ```
 
+### Using a shared hub vs. your own
+
+`.env.example` defaults `VITE_HUB_URL` to our public hub at **[db-flow.remotatech.com](https://db-flow.remotatech.com)** — clone the repo, build, and you're browsing/publishing against a shared Postgres with no setup. Change it to your own hub's URL, or clear it (same-origin) if you're running the combined self-host image with your own `DATABASE_URL`.
+
+Prefer full control over your data? Run your own hub — point `DATABASE_URL` at any Postgres instance (local, Neon, Supabase, Railway, Coolify) and leave `VITE_HUB_URL` empty. See [Quick Start](#quick-start).
+
+A hosted hub is expected to sit behind:
+- A global rate limiter (50 requests / min per IP) for browsing.
+- A stricter limiter on publishing (10 flows / hour per IP) to curb spam.
+- Destructive routes (e.g. deleting a flow) gated behind `HUB_ADMIN_KEY` — unset by default, i.e. disabled.
+
 ---
 
 ## Node Types

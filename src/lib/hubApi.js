@@ -1,11 +1,15 @@
 /**
  * Community Hub API client.
  *
- * All requests are relative to `/api/hub` — in dev Vite proxies that to the
- * hub server (:3002); in production the hub serves the frontend from the same
- * origin, so no base URL is needed.
+ * By default, requests go to `/api/hub` on the current origin — in dev Vite
+ * proxies that to the local hub server (:3002); in a self-hosted deployment
+ * the hub serves the frontend from the same origin, so no base URL is needed.
+ *
+ * Set VITE_HUB_URL at build time to point at a different hub instead (e.g.
+ * a publicly hosted hub) — for example when running the frontend locally
+ * without standing up your own Postgres-backed hub server.
  */
-const HUB = '/api/hub';
+const HUB = `${import.meta.env.VITE_HUB_URL || ''}/api/hub`;
 
 async function json(url, opts) {
   const res = await fetch(url, opts);
