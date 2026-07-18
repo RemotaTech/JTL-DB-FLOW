@@ -2,7 +2,7 @@
 
 ![DBFLOW](dbFlow.png)
 
-[![Tests](https://github.com/abdullahIbdah/JTL-FLOW/actions/workflows/test.yml/badge.svg)](https://github.com/abdullahIbdah/JTL-FLOW/actions/workflows/test.yml)
+[![Tests](https://github.com/RemotaTech/JTL-DB-FLOW/actions/workflows/test.yml/badge.svg)](https://github.com/RemotaTech/JTL-DB-FLOW/actions/workflows/test.yml)
 [![License](https://img.shields.io/badge/license-Sustainable%20Use-blue)](LICENSE.md)
 
 A **visual SQL query builder** for JTL-WAWI databases. Connect nodes together to construct complex SQL queries without writing a single line of code — then run them against your own MSSQL database.
