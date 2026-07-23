@@ -5,6 +5,7 @@
  */
 import express from 'express';
 import sql from 'mssql';
+import rateLimit from 'express-rate-limit';
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -56,7 +57,7 @@ export function buildMssqlConfig(conn) {
 }
 
 function connKey(conn) {
-  return `${conn.host}|${conn.port || ''}|${conn.instance || ''}|${conn.user}|${conn.database || ''}`;
+  return `${conn.host}|${conn.port || ''}|${conn.instance || ''}|${conn.user}|${conn.password}|${conn.database || ''}`;
 }
 
 async function getPool(conn) {
@@ -83,6 +84,29 @@ export async function closeAllPools() {
   }
   poolCache.clear();
 }
+
+// ── Query safety ─────────────────────────────────────────────────────────────
+
+// Blocks batched statements (via `;`) and any non-SELECT / DDL / execution
+// keyword, so a single read-only SELECT is the only thing that can run.
+const DANGEROUS_KEYWORDS =
+  /\b(EXEC|EXECUTE|INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|MERGE|GRANT|REVOKE|CREATE|OPENROWSET|OPENQUERY|OPENDATASOURCE|XP_CMDSHELL)\b/i;
+
+function isSafeSelectQuery(query) {
+  const trimmed = query.trim().replace(/;+\s*$/, '');
+  if (!/^SELECT\b/i.test(trimmed)) return false;
+  if (trimmed.includes(';')) return false;
+  if (DANGEROUS_KEYWORDS.test(trimmed)) return false;
+  return true;
+}
+
+const queryLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many queries, please try again later.' },
+});
 
 // ── Router ───────────────────────────────────────────────────────────────────
 const router = express.Router();
@@ -134,14 +158,14 @@ router.get('/api/schema', (_req, res) => {
  * POST /api/query
  * Body: { sql: string, connectionConfig: { host, port, instance, user, password } }
  */
-router.post('/api/query', async (req, res) => {
+router.post('/api/query', queryLimiter, async (req, res) => {
   const { sql: query, connectionConfig } = req.body;
 
   if (!query || typeof query !== 'string')
     return res.status(400).json({ error: 'No SQL query provided' });
 
-  if (!query.trim().toUpperCase().startsWith('SELECT'))
-    return res.status(403).json({ error: 'Only SELECT queries are allowed' });
+  if (!isSafeSelectQuery(query))
+    return res.status(403).json({ error: 'Only a single read-only SELECT statement is allowed' });
 
   if (!connectionConfig?.host || !connectionConfig?.user)
     return res.status(400).json({

@@ -35,7 +35,11 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
   : true; // `true` = reflect the request Origin (allow all)
 
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+// Credentialed cross-origin requests only make sense against an explicit
+// origin whitelist — reflecting every origin (the unset default) must never
+// be paired with credentials:true, or any site could ride an authenticated
+// session against this API.
+app.use(cors({ origin: allowedOrigins, credentials: !!process.env.ALLOWED_ORIGINS }));
 app.use(express.json({ limit: '5mb' }));
 
 const limiter = rateLimit({
