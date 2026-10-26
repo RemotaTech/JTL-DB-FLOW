@@ -31,7 +31,9 @@ function Badge({ icon, color, children, title }) {
   );
 }
 
-const hostPretty = (t) => { try { return new URL(t).host; } catch { return t; } };
+const SUPPORT_EMAIL = 'info@remotatech.com';
+
+const hostPretty =(t) => { try { return new URL(t).host; } catch { return t; } };
 
 export default function SettingsModal({
   draft, setField, version, setVersion, versions = [],
@@ -137,7 +139,8 @@ export default function SettingsModal({
       </div>
       {!localTarget && (
         <Notice kind="warning" style={{ marginBottom: 10 }}>
-          Die Zugangsdaten werden für jede Abfrage an <b>{hostPretty(target)}</b> übertragen, damit dieser Server Ihre Datenbank abfragen kann. Wenn Sie das nicht möchten, betreiben Sie DBFLOW lokal (<Code>npm run dev:all</Code>).
+          Die Zugangsdaten werden für jede Abfrage{/^https:/i.test(target) ? ' verschlüsselt (HTTPS)' : ''} an <b>{hostPretty(target)}</b> übertragen, damit dieser Server Ihre Datenbank abfragen kann.
+          Wenn Sie das nicht möchten, fragen Sie unser Team unter <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: '#93c5fd' }}>{SUPPORT_EMAIL}</a> — wir helfen Ihnen, DBFLOW lokal als Container oder Desktop-App zu testen.
         </Notice>
       )}
       {!secure && (
