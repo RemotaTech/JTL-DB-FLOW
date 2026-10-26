@@ -1,0 +1,65 @@
+# electron-builder config — `npm run electron:build` (current OS) or
+# electron:build:mac / :win / :linux. Output → release/
+appId: com.remotatech.dbflow
+productName: DBFLOW
+copyright: Copyright © 2026 Remota Tech
+artifactName: "${productName}-${version}-${os}-${arch}.${ext}"
+
+directories:
+  output: release
+  buildResources: build
+
+# Only what the desktop runtime needs: built SPA, Electron glue, bridge, schemas.
+# Hub server, Prisma, scraper and frontend source stay out of the bundle.
+files:
+  - dist/**
+  - electron/**
+  - bridge/**
+  - versions/**
+  - schema.json
+  - package.json
+  - "!node_modules/{@prisma,prisma,.prisma,react,react-dom,lucide-react,tailwindcss,@tailwindcss,axios,cheerio,dotenv,cors}/**"
+  - "!**/*.map"
+
+asar: true
+npmRebuild: false
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - { target: dmg, arch: [arm64, x64] }
+    - { target: zip, arch: [arm64, x64] }
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  darkModeSupport: true
+  # Unsigned by default; set CSC_LINK / CSC_KEY_PASSWORD (+ APPLE_ID etc. for
+  # notarization) in CI to produce a signed build.
+  identity: null
+dmg:
+  contents:
+    - { x: 130, y: 220 }
+    - { x: 410, y: 220, type: link, path: /Applications }
+
+win:
+  target:
+    - { target: nsis, arch: [x64] }
+    - { target: portable, arch: [x64] }
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: DBFLOW
+  language: "1031"   # German
+
+linux:
+  category: Development
+  target: [AppImage, deb]
+  maintainer: Remota Tech <info@remotatech.com>
+
+publish:
+  provider: github
+  owner: RemotaTech
+  repo: JTL-DB-FLOW
+  releaseType: release

@@ -291,3 +291,63 @@ describe('Unknown routes', () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ─── Hardening (input types, ids, size) ────────────────────────────────────
+
+describe('POST /api/hub/flows (hardening)', () => {
+  const base = { title: 'T', flowData: { steps: [{ type: 'source', table: 'dbo.tArtikel' }] } };
+  beforeEach(() => { mockPrisma.flow.create.mockImplementation(async ({ data }) => ({ id: 'new', ...data })); });
+
+  it('does not 500 on non-string description / author / tags', async () => {
+    const res = await request(app).post('/api/hub/flows').send({ ...base, description: 123, author: { x: 1 }, tags: ['a'] });
+    expect(res.status).toBe(201);
+    expect(res.body.description).toBe('');
+    expect(res.body.author).toBe('Anonymous');
+    expect(res.body.tags).toBe('');
+  });
+
+  it('sanitises the pipeline: unknown steps dropped, ids replaced, vars filtered', async () => {
+    const res = await request(app).post('/api/hub/flows').send({ ...base, flowData: {
+      steps: [{ id: 's1', type: 'source', table: 'dbo.tArtikel' }, { type: 'evil' }, { id: 's1', type: 'sort', by: 'dbo.tArtikel.cArtNr' }],
+      vars: [{ name: 'ok', value: 'GETDATE()' }, { name: 'bad', value: '1; DROP TABLE x' }],
+    } });
+    expect(res.status).toBe(201);
+    expect(res.body.flowData.steps.map(s => s.type)).toEqual(['source', 'sort']);
+    expect(res.body.flowData.steps[0].id).not.toBe('s1');
+    expect(res.body.flowData.vars.map(v => v.name)).toEqual(['ok']);
+    expect(res.body.stepCount).toBe(2);
+  });
+
+  it('rejects a non-string title and an array body', async () => {
+    expect((await request(app).post('/api/hub/flows').send({ ...base, title: 5 })).status).toBe(400);
+    expect((await request(app).post('/api/hub/flows').send([1, 2])).status).toBe(400);
+  });
+
+  it('rejects too many steps', async () => {
+    const steps = Array.from({ length: 41 }, () => ({ type: 'join', table: 'a.b' }));
+    const res = await request(app).post('/api/hub/flows').send({ ...base, flowData: { steps: [{ type: 'source', table: 'a.b' }, ...steps] } });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 (not 500) for malformed JSON', async () => {
+    const res = await request(app).post('/api/hub/flows').set('Content-Type', 'application/json').send('{"title":');
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('id + query hardening', () => {
+  it('404s malformed ids without touching the DB', async () => {
+    const res = await request(app).get('/api/hub/flows/..%2F..%2Fetc');
+    expect(res.status).toBe(404);
+    expect(mockPrisma.flow.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('tolerates repeated query params (arrays) and clamps limit/page', async () => {
+    mockPrisma.flow.findMany.mockResolvedValue([]);
+    mockPrisma.flow.count.mockResolvedValue(0);
+    const res = await request(app).get('/api/hub/flows?tags=a&tags=b&limit=-5&page=0&search[]=x');
+    expect(res.status).toBe(200);
+    expect(res.body.pagination.limit).toBe(1);
+    expect(res.body.pagination.page).toBe(1);
+  });
+});

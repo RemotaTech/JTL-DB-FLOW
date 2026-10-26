@@ -4,7 +4,8 @@
  * on the right. Renders REAL rows returned by the MSSQL bridge.
  */
 import React, { useState, useMemo } from 'react';
-import { Icon, Eyebrow } from './ui.jsx';
+import { Icon, Eyebrow, Btn, Notice } from './ui.jsx';
+import { ROW_LIMIT } from '../../lib/steps.js';
 
 const csvBtn = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)', fontSize: 12.5, fontWeight: 550, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' };
 
@@ -29,12 +30,17 @@ function fmtCell(v) {
   return String(v);
 }
 
+/** CSV cell: quote when needed and neutralise spreadsheet formula injection (`=`, `+`, `-`, `@`, tab/CR). */
+export function csvCell(v) {
+  if (v === null || v === undefined) return '';
+  let s = v instanceof Date ? v.toISOString() : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  s = s.replace(/"/g, '""');
+  return /[;"\n\r']/.test(s) ? `"${s}"` : s;
+}
+
 function exportCSV(cols, rows) {
-  const esc = (v) => {
-    if (v === null || v === undefined) return '';
-    const s = String(v).replace(/"/g, '""');
-    return /[;"\n]/.test(s) ? `"${s}"` : s;
-  };
+  const esc = csvCell;
   const head = cols.join(';');
   const body = rows.map(r => cols.map(c => esc(r[c])).join(';')).join('\n');
   const blob = new Blob(['﻿' + head + '\n' + body], { type: 'text/csv;charset=utf-8' });
@@ -44,7 +50,7 @@ function exportCSV(cols, rows) {
   URL.revokeObjectURL(url);
 }
 
-export default function ResultsDrawer({ open, onToggle, sql, running, results, error, executionTime }) {
+export default function ResultsDrawer({ open, onToggle, sql, running, results, error, executionTime, truncated, onCancel, onRun, connected, onSettings }) {
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('desc');
   const [copied, setCopied] = useState(false);
@@ -64,7 +70,11 @@ export default function ResultsDrawer({ open, onToggle, sql, running, results, e
   }, [results, sortKey, sortDir, numericCols]);
 
   const sort = (k) => { if (k === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortKey(k); setSortDir('desc'); } };
-  const copy = () => { navigator.clipboard && navigator.clipboard.writeText(sql); setCopied(true); setTimeout(() => setCopied(false), 1400); };
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(sql); setCopied(true); setTimeout(() => setCopied(false), 1400); }
+    catch { /* clipboard blocked (http / permissions) — the SQL is still selectable */ }
+  };
+  const atLimit = results.length >= ROW_LIMIT;
 
   return (
     <div style={{
@@ -79,8 +89,9 @@ export default function ResultsDrawer({ open, onToggle, sql, running, results, e
           <Icon name="table" size={16} style={{ color: '#60a5fa' }} />
           <span style={{ fontSize: 14, fontWeight: 600 }}>Ergebnisse</span>
         </div>
-        <span style={{ fontSize: 12, color: error ? '#fb7185' : 'rgba(255,255,255,0.45)', fontFamily: "'Geist Mono', monospace" }}>
-          {running ? 'läuft…' : error ? '⚠ Fehler' : results.length ? `${results.length} Zeilen${executionTime ? ` · ${executionTime}s` : ''}` : 'bereit'}
+        <span style={{ fontSize: 12, color: error ? '#fb7185' : 'rgba(255,255,255,0.45)', fontFamily: "'Geist Mono', monospace", display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {running && <Icon name="spinner" size={12} />}
+          {running ? 'läuft…' : error ? '⚠ Fehler' : results.length ? `${results.length} Zeilen${atLimit ? ` (Limit ${ROW_LIMIT})` : ''}${executionTime ? ` · ${executionTime}s` : ''}` : 'bereit'}
         </span>
         <div style={{ flex: 1 }} />
         {open && results.length > 0 && (
@@ -92,9 +103,9 @@ export default function ResultsDrawer({ open, onToggle, sql, running, results, e
       </button>
 
       {open && (
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '0.82fr 1.18fr', minHeight: 0, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="results-split" style={{ flex: 1, display: 'grid', gridTemplateColumns: '0.82fr 1.18fr', minHeight: 0, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
           {/* SQL */}
-          <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, borderRight: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="results-sql" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, borderRight: '1px solid rgba(255,255,255,0.08)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 18px', flexShrink: 0 }}>
               <Eyebrow>Generiertes SQL</Eyebrow>
               <div style={{ flex: 1 }} />
@@ -107,13 +118,32 @@ export default function ResultsDrawer({ open, onToggle, sql, running, results, e
           </div>
           {/* data table */}
           <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <div style={{ padding: '12px 18px', flexShrink: 0 }}><Eyebrow>Datentabelle</Eyebrow></div>
+            <div style={{ padding: '12px 18px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Eyebrow>Datentabelle</Eyebrow>
+              {!error && !running && results.length > 0 && atLimit && (
+                <span style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.45)' }} title={`Jede Abfrage ist auf ${ROW_LIMIT} Zeilen begrenzt (SELECT TOP ${ROW_LIMIT}). Filter oder Sortierung nutzen, um die gewünschten Zeilen nach oben zu holen.`}>
+                  · nur die ersten {ROW_LIMIT} Zeilen{truncated ? ' (Server-Limit)' : ''}
+                </span>
+              )}
+            </div>
             <div style={{ overflow: 'auto', flex: 1, padding: '0 12px 12px' }}>
               {error ? (
-                <div style={{ padding: '16px 14px', fontSize: 13, color: '#fb7185', fontFamily: "'Geist Mono', monospace", whiteSpace: 'pre-wrap' }}>{error}</div>
+                <div style={{ padding: '14px 6px' }}>
+                  <Notice kind="error" title="Abfrage fehlgeschlagen" action={<Btn variant="glass" size="sm" icon="rotate" onClick={onRun}>Erneut</Btn>}>
+                    <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{error}</span>
+                  </Notice>
+                </div>
+              ) : running ? (
+                <div style={{ padding: '40px 14px', fontSize: 13, color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Icon name="spinner" size={16} style={{ color: '#60a5fa' }} /> Abfrage läuft…
+                  <Btn variant="ghost" size="sm" icon="stop" onClick={onCancel}>Abbrechen</Btn>
+                </div>
               ) : results.length === 0 ? (
-                <div style={{ padding: '40px 14px', fontSize: 13, color: 'rgba(255,255,255,0.35)', fontStyle: 'italic' }}>
-                  {running ? 'Abfrage läuft…' : 'Noch keine Ergebnisse. „Ausführen“ klicken.'}
+                <div style={{ padding: '36px 14px', fontSize: 13, color: 'rgba(255,255,255,0.45)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}>
+                  {executionTime && !error ? 'Die Abfrage lieferte keine Zeilen.' : connected ? 'Noch keine Ergebnisse.' : 'Zum Ausführen zuerst die Datenbankverbindung einrichten.'}
+                  {connected
+                    ? <Btn variant="primary" size="sm" icon="play" onClick={onRun}>Ausführen</Btn>
+                    : <Btn variant="primary" size="sm" icon="settings" onClick={onSettings}>Verbindung einrichten</Btn>}
                 </div>
               ) : (
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>

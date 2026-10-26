@@ -53,6 +53,8 @@ COPY prisma ./prisma
 COPY selfhost-server.js ./
 COPY bridge ./bridge
 COPY hub ./hub
+# Runtime-shared ESM modules (hub/seed.js + hub/app.js import from src/lib)
+COPY src/lib ./src/lib
 
 # Schema files
 COPY schema.json ./

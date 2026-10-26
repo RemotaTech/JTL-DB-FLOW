@@ -15,8 +15,9 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
       include: [
-        'src/utils/**',
+        'src/lib/**',
         'hub/app.js',
+        'bridge/**',
         'server.js',
       ],
       exclude: ['node_modules', 'dist'],

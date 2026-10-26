@@ -3,7 +3,7 @@
  * Templates load a runnable real-schema pipeline; blank tiles seed a source.
  */
 import React, { useState, useMemo } from 'react';
-import { Icon, Eyebrow, TextField, hexA, lighten, MONO } from './ui.jsx';
+import { Icon, Eyebrow, TextField, Btn, hexA, lighten, MONO } from './ui.jsx';
 import { availableTemplates, templateSteps } from '../../lib/reportTemplates.js';
 
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
@@ -58,7 +58,7 @@ function groupBySchema(tables) {
   return map;
 }
 
-export default function EmptyView({ schema, onTemplate, onBlank, onOpenCommunity, localReports = [], onOpenLocal, onDeleteLocal }) {
+export default function EmptyView({ schema, bridge, onTemplate, onBlank, onOpenCommunity, localReports = [], onOpenLocal, onDeleteLocal, draft, onResume }) {
   const [q, setQ] = useState('');
   const templates = availableTemplates(schema);
   const list = templates.filter(t => (t.title + t.desc + t.tag).toLowerCase().includes(q.toLowerCase()));
@@ -67,7 +67,7 @@ export default function EmptyView({ schema, onTemplate, onBlank, onOpenCommunity
   return (
     <div style={{ maxWidth: 1080, margin: '0 auto', padding: '76px 32px 120px' }}>
       <div className="fade-up" style={{ textAlign: 'center', marginBottom: 40 }}>
-        <h1 style={{ fontSize: 42, fontWeight: 600, letterSpacing: '-0.025em', margin: '0 0 14px', lineHeight: 1.08 }}>Was möchten Sie auswerten?</h1>
+        <h1 style={{ fontSize: 'clamp(28px, 5vw, 42px)', fontWeight: 600, letterSpacing: '-0.025em', margin: '0 0 14px', lineHeight: 1.08 }}>Was möchten Sie auswerten?</h1>
         <p style={{ fontSize: 16.5, color: 'rgba(255,255,255,0.5)', margin: 0, maxWidth: 540, marginInline: 'auto', lineHeight: 1.5 }}>
           Wählen Sie eine Vorlage oder starten Sie leer. DBFLOW baut die Abfrage für Ihre JTL-Wawi Schritt für Schritt auf.
         </p>
@@ -75,6 +75,25 @@ export default function EmptyView({ schema, onTemplate, onBlank, onOpenCommunity
           <TextField value={q} onChange={setQ} placeholder="Vorlagen durchsuchen…" icon="search" style={{ height: 46 }} />
         </div>
       </div>
+
+      {/* Resume the pipeline that is currently open in the builder */}
+      {draft && (
+        <div className="fade-up" style={{ marginBottom: 28 }}>
+          <button onClick={onResume} style={{
+            display: 'flex', alignItems: 'center', gap: 14, width: '100%', textAlign: 'left', padding: '14px 18px', borderRadius: 16, cursor: 'pointer', fontFamily: 'inherit', color: '#fff',
+            background: hexA(draft.color || '#3b82f6', 0.08), border: `1px solid ${hexA(draft.color || '#3b82f6', 0.35)}`,
+          }}>
+            <div style={{ width: 38, height: 38, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', background: hexA(draft.color || '#3b82f6', 0.16), color: lighten(draft.color || '#3b82f6'), flexShrink: 0 }}>
+              <Icon name={draft.icon || 'database'} size={18} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Weiter bearbeiten: {draft.title}</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>{draft.steps.length} Schritte{draft.dirty ? ' · ungespeicherte Änderungen' : ''}</div>
+            </div>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: lighten(draft.color || '#3b82f6'), fontWeight: 550 }}>Öffnen <Icon name="chevronRight" size={14} /></span>
+          </button>
+        </div>
+      )}
 
       {/* Meine Berichte — locally saved reports */}
       {localReports.length > 0 && (
@@ -104,7 +123,7 @@ export default function EmptyView({ schema, onTemplate, onBlank, onOpenCommunity
 
       <div className="fade-up" style={{ animationDelay: '.12s', marginTop: 44 }}>
         <Eyebrow style={{ marginBottom: 16 }}>Leer starten · Tabelle wählen</Eyebrow>
-        <TableBrowser tables={tables} onPick={onBlank} />
+        <TableBrowser tables={tables} onPick={onBlank} bridge={bridge} />
       </div>
     </div>
   );
@@ -143,7 +162,8 @@ function LocalCard({ report, onOpen, onDelete }) {
   const [hover, setHover] = useState(false);
   const c = report.color || '#3b82f6';
   return (
-    <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onClick={onOpen}
+    <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onClick={onOpen} role="button" tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
       style={{
         position: 'relative', display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, cursor: 'pointer',
         background: hover ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.035)',
@@ -158,7 +178,7 @@ function LocalCard({ report, onOpen, onDelete }) {
           {(report.steps?.length || 0)} Schritte{report.hubId ? ' · aus Community' : ''}
         </div>
       </div>
-      <button onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Löschen"
+      <button onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Löschen" aria-label="Bericht löschen"
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 8, border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', opacity: hover ? 1 : 0.4 }} className="del">
         <Icon name="trash" size={15} />
       </button>
@@ -167,7 +187,7 @@ function LocalCard({ report, onOpen, onDelete }) {
 }
 
 // ─── Table browser — schema categories (left) + search + grouped grid ───────
-function TableBrowser({ tables, onPick }) {
+function TableBrowser({ tables, onPick, bridge }) {
   const [active, setActive] = useState('__all');
   const [q, setQ] = useState('');
 
@@ -187,7 +207,13 @@ function TableBrowser({ tables, onPick }) {
   }), [tables, active, query]);
 
   if (tables.length === 0) {
-    return <p style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.4)' }}>Schema wird geladen…</p>;
+    return (
+      <p style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        {bridge === 'offline'
+          ? <><Icon name="offline" size={14} /> Tabellen erscheinen, sobald der Bridge-Server läuft.</>
+          : <><Icon name="spinner" size={14} /> Schema wird geladen…</>}
+      </p>
+    );
   }
 
   const catBtn = (key, label, count) => {
@@ -210,7 +236,7 @@ function TableBrowser({ tables, onPick }) {
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '210px 1fr', gap: 16, alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 210px) 1fr', gap: 16, alignItems: 'start' }}>
       {/* category sidebar */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: 8, borderRadius: 14, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)', maxHeight: 460, overflowY: 'auto', position: 'sticky', top: 12 }}>
         <div style={{ padding: '4px 8px 8px' }}><Eyebrow>Kategorien</Eyebrow></div>

@@ -33,10 +33,8 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('reactflow'))      return 'reactflow';
-          if (id.includes('react-dom') ||
-              id.includes('react/') ||
-              id.includes('framer-motion')) return 'vendor';
+          if (id.includes('lucide-react')) return 'icons';
+          if (id.includes('react-dom') || id.includes('/react/')) return 'vendor';
         },
       },
     },

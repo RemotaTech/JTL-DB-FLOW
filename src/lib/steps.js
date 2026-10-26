@@ -17,6 +17,10 @@
  * generated T-SQL is unambiguous across the multi-schema JTL database.
  */
 import { tableColumns } from './columns.js';
+import { OPS, AGGS } from './validate.js';
+
+/** Hard row cap baked into every generated query (`SELECT TOP n`). */
+export const ROW_LIMIT = 100;
 
 // ─── Per-step metadata (color-coded, German labels) ────────────────────────
 export const STEP_META = {
@@ -33,18 +37,30 @@ export const STEP_META = {
 export const ADDABLE = ['join', 'filter', 'group', 'sort', 'columns', 'format'];
 
 // ─── Operators + aggregates ─────────────────────────────────────────────────
-export const OPERATORS = ['=', '≠', '>', '<', '≥', '≤', 'enthält'];
+export const OPERATORS = OPS;
 const OP_SQL = { '=': '=', '≠': '<>', '>': '>', '<': '<', '≥': '>=', '≤': '<=', 'enthält': 'LIKE' };
 
 // Plain-German operator labels for the non-technical builder UI.
 export const OP_LABEL = { '=': 'ist gleich', '≠': 'ist nicht', '>': 'größer als', '<': 'kleiner als', '≥': 'mindestens', '≤': 'höchstens', 'enthält': 'enthält' };
 
-export const AGGREGATES = ['Anzahl', 'Summe', 'Durchschnitt', 'Minimum', 'Maximum'];
+export const AGGREGATES = AGGS;
 const AGG_SQL = { Anzahl: 'COUNT', Summe: 'SUM', Durchschnitt: 'AVG', Minimum: 'MIN', Maximum: 'MAX' };
 
 // ─── IDs + step factory ─────────────────────────────────────────────────────
-let _id = 100;
-export const uid = () => `s${++_id}`;
+// Ids must be unique across *sessions* and *machines*: steps are persisted to
+// localStorage and imported from the hub, so a plain counter collides (two
+// cards sharing `s101` → one patch edits both). Random suffix fixes that.
+let _seq = 0;
+export const uid = () => `s${Date.now().toString(36)}${(++_seq).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+/** Re-id every step (and nested format items) of a foreign pipeline. */
+export function reidSteps(steps) {
+  return (steps || []).map(s => {
+    const n = { ...s, id: uid() };
+    if (s.type === 'format') n.items = (s.items || []).map(it => ({ ...it, id: uid() }));
+    return n;
+  });
+}
 
 export function newStep(type) {
   const base = { id: uid(), type };
@@ -100,10 +116,13 @@ export function groupOutputs(group) {
 
 // ─── SQL generation ─────────────────────────────────────────────────────────
 
+/** Bracket-quote one identifier part; `]` is the only char that needs escaping in T-SQL brackets. */
+const br = (p) => `[${String(p).replace(/]/g, ']]')}]`;
+
 /** Bracket-quote a qualified identifier: `schema.tTable.col` → `[schema].[tTable].[col]` */
 function fmtId(id) {
   if (!id) return '';
-  return String(id).split('.').map(p => `[${p}]`).join('.');
+  return String(id).split('.').map(br).join('.');
 }
 
 const isNumeric = (v) => v !== '' && v != null && !isNaN(Number(v));
@@ -145,7 +164,7 @@ function formatItemSql(item, vars) {
   const alias = (item.as && item.as.trim()) || (item.field ? String(item.field).split('.').pop() : 'Spalte');
   const rules = (item.rules || []).filter(r => (r.conds || []).some(c => c.field));
   if (rules.length === 0) {
-    return item.field ? `${fmtId(item.field)} AS [${alias}]` : null;
+    return item.field ? `${fmtId(item.field)} AS ${br(alias)}` : null;
   }
   const whens = rules.map(r => {
     const joiner = r.join === 'ODER' ? ' OR ' : ' AND ';
@@ -155,7 +174,7 @@ function formatItemSql(item, vars) {
     return `WHEN ${cond} THEN ${outputLiteral(r.then, vars)}`;
   });
   const elsePart = (item.otherwise != null && String(item.otherwise) !== '') ? ` ELSE ${outputLiteral(item.otherwise, vars)}` : '';
-  return `CASE ${whens.join(' ')}${elsePart} END AS [${alias}]`;
+  return `CASE ${whens.join(' ')}${elsePart} END AS ${br(alias)}`;
 }
 
 /**
@@ -177,13 +196,13 @@ export function stepsToSql(steps, vars = [], schema = null) {
   // SELECT list. Spalten picks the columns (or all if none); Formatierung — the
   // last step — renames those columns and/or appends computed Wenn-Dann columns.
   // Aggregation (Gruppierung) defines its own output and takes precedence.
-  const colExpr = (c) => (c.includes('.') ? fmtId(c) : `[${c}]`);
+  const colExpr = (c) => (c.includes('.') ? fmtId(c) : br(c));
   const select = [];
   if (group) {
     (group.by || []).forEach(b => select.push('  ' + fmtId(b)));
     (group.metrics || []).forEach(m => {
       const inner = m.field ? fmtId(m.field) : '*';
-      select.push(`  ${AGG_SQL[m.agg] || 'COUNT'}(${inner}) AS [${m.as || m.agg}]`);
+      select.push(`  ${AGG_SQL[m.agg] || 'COUNT'}(${inner}) AS ${br(m.as || m.agg)}`);
     });
   } else {
     // base columns = Spalten selection, or null = "all"
@@ -198,7 +217,7 @@ export function stepsToSql(steps, vars = [], schema = null) {
       else if (it.field && it.as && it.as.trim()) renames.set(it.field, it.as.trim());
     });
 
-    const emit = (c) => select.push('  ' + (renames.has(c) ? `${colExpr(c)} AS [${renames.get(c)}]` : colExpr(c)));
+    const emit = (c) => select.push('  ' + (renames.has(c) ? `${colExpr(c)} AS ${br(renames.get(c))}` : colExpr(c)));
     if (baseCols) {
       baseCols.forEach(emit);
     } else if (renames.size && schema) {
@@ -211,7 +230,7 @@ export function stepsToSql(steps, vars = [], schema = null) {
   }
   if (!select.length) select.push('  *');
 
-  let sql = 'SELECT TOP 100\n' + select.join(',\n');
+  let sql = `SELECT TOP ${ROW_LIMIT}\n` + select.join(',\n');
   sql += `\nFROM ${fmtId(src.table)}`;
 
   // JOINs
@@ -239,10 +258,71 @@ export function stepsToSql(steps, vars = [], schema = null) {
   const orderParts = [];
   sorts.forEach(s => {
     if (!s.by) return;
-    const col = s.by.includes('.') ? fmtId(s.by) : `[${s.by}]`;
+    const col = s.by.includes('.') ? fmtId(s.by) : br(s.by);
     orderParts.push(`${col} ${(s.dir || 'desc').toUpperCase()}`);
   });
   if (orderParts.length) sql += '\nORDER BY ' + orderParts.join(', ');
 
   return sql + ';';
+}
+
+// ─── Step completeness ──────────────────────────────────────────────────────
+// Incomplete steps are silently skipped by stepsToSql; the builder surfaces
+// them instead so a merchant knows *why* a filter had no effect.
+
+/** Plain-German problems with one step, or `[]` when it is complete. */
+export function stepIssues(step, steps = [], schema = null) {
+  const out = [];
+  const known = schema?.tables ? new Set(availableFields(schema, steps).map(f => f.value)) : null;
+  const fieldOk = (f) => !!f && (!known || known.has(f) || !f.includes('.'));
+  switch (step.type) {
+    case 'source':
+      if (!step.table) out.push('Tabelle wählen');
+      else if (schema?.tables && !schema.tables.some(t => t.name === step.table)) out.push(`Tabelle „${step.table}“ nicht im Schema`);
+      break;
+    case 'join':
+      if (!step.table) out.push('Tabelle wählen');
+      else if (!step.fromCol || !step.toCol) out.push('Schlüssel wählen');
+      break;
+    case 'filter': {
+      const conds = step.conditions || [];
+      if (!conds.length) out.push('Bedingung hinzufügen');
+      conds.forEach((c, i) => {
+        if (!c.field) out.push(`Bedingung ${i + 1}: Feld wählen`);
+        else if (!fieldOk(c.field)) out.push(`Bedingung ${i + 1}: Feld nicht verfügbar`);
+        else if (String(c.value ?? '') === '') out.push(`Bedingung ${i + 1}: Wert eingeben`);
+      });
+      break;
+    }
+    case 'group': {
+      const metrics = step.metrics || [];
+      if (!(step.by || []).length && !metrics.length) out.push('Feld oder Kennzahl wählen');
+      metrics.forEach((m, i) => {
+        if (m.agg !== 'Anzahl' && !m.field) out.push(`Kennzahl ${i + 1}: Feld wählen`);
+        if (!(m.as || '').trim()) out.push(`Kennzahl ${i + 1}: Name vergeben`);
+      });
+      break;
+    }
+    case 'sort':
+      if (!step.by) out.push('Feld wählen');
+      break;
+    case 'format':
+      (step.items || []).forEach((it, i) => {
+        const hasRules = (it.rules || []).length > 0;
+        if (!hasRules && !it.field) out.push(`Spalte ${i + 1}: Feld wählen`);
+        if (hasRules && !(it.as || '').trim()) out.push(`Spalte ${i + 1}: Spaltenname vergeben`);
+        (it.rules || []).forEach((r, ri) => {
+          if (!(r.conds || []).some(c => c.field)) out.push(`Spalte ${i + 1}, Regel ${ri + 1}: Feld wählen`);
+        });
+      });
+      break;
+    default:
+      break;
+  }
+  return out;
+}
+
+/** Total issue count across the pipeline (for the run button / header). */
+export function pipelineIssues(steps = [], schema = null) {
+  return steps.reduce((n, s) => n + stepIssues(s, steps, schema).length, 0);
 }

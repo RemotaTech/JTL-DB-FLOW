@@ -13,6 +13,7 @@ import {
   Table, Search, Trash2, GripVertical, Sparkles, Users, Package, TrendingUp,
   ShoppingCart, Grid3x3, RotateCcw, UserPlus, ShieldCheck, Lock, Server,
   Check, Pencil, Copy, Zap, Factory, XCircle, ListOrdered, Globe, FolderOpen, Minus,
+  AlertTriangle, Eye, EyeOff, WifiOff, Loader2, Info, Square, Upload,
 } from 'lucide-react';
 
 const ICON_MAP = {
@@ -24,12 +25,17 @@ const ICON_MAP = {
   grid: Grid3x3, rotate: RotateCcw, userPlus: UserPlus, shield: ShieldCheck, lock: Lock,
   server: Server, check: Check, pencil: Pencil, copy: Copy, zap: Zap, factory: Factory,
   xCircle: XCircle, listOrdered: ListOrdered, globe: Globe, folder: FolderOpen, minus: Minus,
+  warning: AlertTriangle, eye: Eye, eyeOff: EyeOff, offline: WifiOff, spinner: Loader2, info: Info, stop: Square, upload: Upload,
 };
 
 export function Icon({ name, size = 16, strokeWidth = 2, style = {}, className = '' }) {
   const Cmp = ICON_MAP[name] || Database;
-  return <Cmp size={size} strokeWidth={strokeWidth} style={{ flexShrink: 0, ...style }} className={className} />;
+  const cls = name === 'spinner' ? `spin ${className}`.trim() : className;
+  return <Cmp size={size} strokeWidth={strokeWidth} style={{ flexShrink: 0, ...style }} className={cls} aria-hidden="true" />;
 }
+
+/** Shared 28–30px icon-only button style (cards, panels, modals). */
+export const iconBtnStyle = { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', transition: 'all .14s', flexShrink: 0 };
 
 // ─── Color helpers ──────────────────────────────────────────────────────────
 export function hexA(hex, a) {
@@ -95,12 +101,12 @@ export function Btn({ children, variant = 'ghost', size = 'md', icon, iconRight,
 }
 
 // ─── Chip ───────────────────────────────────────────────────────────────────
-export function Chip({ children, color, onRemove, onClick, mono, style = {} }) {
+export function Chip({ children, color, onRemove, onClick, mono, style = {}, title }) {
   const [hover, setHover] = useState(false);
   const c = color || '#3b82f6';
   return (
     <span
-      onClick={onClick}
+      onClick={onClick} title={title}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 6, padding: onRemove ? '4px 6px 4px 10px' : '4px 10px',
@@ -206,7 +212,7 @@ export function MenuItem({ icon, iconColor, children, onClick, active, right, mo
 }
 
 // ─── Text input ─────────────────────────────────────────────────────────────
-export function TextField({ value, onChange, placeholder, icon, mono, type = 'text', style = {}, prefix, onKeyDown }) {
+export function TextField({ value, onChange, placeholder, icon, mono, type = 'text', style = {}, prefix, suffix, onKeyDown, autoComplete, inputMode, maxLength = 256, ariaLabel }) {
   const [focus, setFocus] = useState(false);
   return (
     <div style={{
@@ -218,11 +224,13 @@ export function TextField({ value, onChange, placeholder, icon, mono, type = 'te
       {icon && <Icon name={icon} size={15} style={{ color: 'rgba(255,255,255,0.4)' }} />}
       {prefix && <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, fontFamily: MONO }}>{prefix}</span>}
       <input
-        type={type} value={value} placeholder={placeholder}
+        type={type} value={value ?? ''} placeholder={placeholder} autoComplete={autoComplete} inputMode={inputMode} maxLength={maxLength}
+        aria-label={ariaLabel || placeholder} spellCheck={false}
         onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown}
         onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
         style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: 13.5, fontFamily: mono ? MONO : 'inherit', minWidth: 0 }}
       />
+      {suffix}
     </div>
   );
 }
@@ -237,4 +245,96 @@ export function Toggle({ value, onChange, color = '#3b82f6' }) {
       <span style={{ width: 18, height: 18, borderRadius: 999, background: '#fff', transition: 'all .18s', boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }} />
     </button>
   );
+}
+
+
+// ─── Modal ──────────────────────────────────────────────────────────────────
+// One overlay implementation for Settings / Publish / Confirm: Esc closes,
+// click on the backdrop closes, body scroll is locked, first field focused.
+export function Modal({ onClose, width = 540, children, labelledBy }) {
+  const boxRef = useRef(null);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose?.(); } };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    // focus the first focusable control so keyboard users land inside
+    const first = boxRef.current?.querySelector('input,select,textarea,button');
+    first?.focus?.();
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+  }, [onClose]);
+  return createPortal(
+    <div onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.(); }} style={{
+      position: 'fixed', inset: 0, zIndex: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+    }}>
+      <div ref={boxRef} role="dialog" aria-modal="true" aria-labelledby={labelledBy} className="modal-in" style={{
+        width: `min(${width}px, 94vw)`, maxHeight: '90vh', overflowY: 'auto', borderRadius: 22, padding: 26,
+        background: 'rgba(18,18,22,0.95)', backdropFilter: 'blur(30px)', WebkitBackdropFilter: 'blur(30px)',
+        border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 40px 100px -20px rgba(0,0,0,0.85)',
+      }}>
+        {children}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/** Modal header: colored icon tile + title/subtitle + close. */
+export function ModalHeader({ icon, color = '#3b82f6', title, subtitle, onClose, id }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 22 }}>
+      <div style={{ width: 44, height: 44, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', background: hexA(color, 0.15), border: `1px solid ${hexA(color, 0.3)}`, color: lighten(color), transition: 'all .2s', flexShrink: 0 }}>
+        <Icon name={icon} size={22} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <h2 id={id} style={{ fontSize: 19, fontWeight: 600, margin: '0 0 3px', letterSpacing: '-0.01em' }}>{title}</h2>
+        {subtitle && <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', margin: 0 }}>{subtitle}</p>}
+      </div>
+      {onClose && <button onClick={onClose} style={iconBtnStyle} aria-label="Schließen"><Icon name="x" size={17} /></button>}
+    </div>
+  );
+}
+
+/** Yes/No dialog. `danger` colors the confirm button red. */
+export function ConfirmDialog({ title, message, confirmLabel = 'Bestätigen', cancelLabel = 'Abbrechen', danger, onConfirm, onCancel }) {
+  return (
+    <Modal onClose={onCancel} width={420} labelledBy="confirm-title">
+      <ModalHeader id="confirm-title" icon={danger ? 'warning' : 'info'} color={danger ? '#f43f5e' : '#3b82f6'} title={title} subtitle={message} />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+        <Btn variant="ghost" onClick={onCancel}>{cancelLabel}</Btn>
+        <Btn variant="primary" onClick={onConfirm} style={danger ? { background: '#e11d48', boxShadow: '0 4px 18px -6px rgba(244,63,94,0.6)' } : {}}>{confirmLabel}</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Notice (inline banner) ─────────────────────────────────────────────────
+const NOTICE = {
+  info:    { color: '#3b82f6', icon: 'info' },
+  warning: { color: '#f59e0b', icon: 'warning' },
+  error:   { color: '#f43f5e', icon: 'xCircle' },
+  success: { color: '#10b981', icon: 'check' },
+  offline: { color: '#f59e0b', icon: 'offline' },
+};
+export function Notice({ kind = 'info', title, children, action, style = {} }) {
+  const n = NOTICE[kind] || NOTICE.info;
+  return (
+    <div role={kind === 'error' ? 'alert' : 'status'} style={{
+      display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderRadius: 12,
+      background: hexA(n.color, 0.09), border: `1px solid ${hexA(n.color, 0.28)}`, color: 'rgba(255,255,255,0.85)', fontSize: 12.5, lineHeight: 1.45, ...style,
+    }}>
+      <Icon name={n.icon} size={15} style={{ color: lighten(n.color), marginTop: 1 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {title && <div style={{ fontWeight: 600, color: lighten(n.color), marginBottom: children ? 2 : 0 }}>{title}</div>}
+        {children}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+/** Inline code (commands in hints). */
+export function Code({ children }) {
+  return <code style={{ fontFamily: MONO, fontSize: 12, padding: '1px 6px', borderRadius: 6, background: 'rgba(255,255,255,0.08)' }}>{children}</code>;
 }

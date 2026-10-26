@@ -215,13 +215,13 @@ describe('GET /api/schema/:version', () => {
   it('returns 400 for version string with illegal characters', async () => {
     const res = await request(app).get('/api/schema/bad$version!');
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/invalid/i);
+    expect(res.body.error).toMatch(/ungültig/i);
   });
 
   it('returns 404 for a well-formed but non-existent version', async () => {
     const res = await request(app).get('/api/schema/9.9.9.9');
     expect(res.status).toBe(404);
-    expect(res.body.error).toMatch(/not found/i);
+    expect(res.body.error).toMatch(/nicht gefunden/i);
   });
 
   it('returns 200 with schema data for a valid existing version', async () => {
@@ -295,7 +295,7 @@ describe('POST /api/query', () => {
   it('returns 400 when connectionConfig is absent', async () => {
     const res = await request(app).post('/api/query').send({ sql: 'SELECT 1' });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/connection/i);
+    expect(res.body.error).toMatch(/verbindung/i);
   });
 
   it('returns 400 when connectionConfig has no host', async () => {

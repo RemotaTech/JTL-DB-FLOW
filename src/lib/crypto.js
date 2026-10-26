@@ -19,6 +19,32 @@
  */
 
 const ALGO            = { name: 'AES-GCM', length: 256 };
+
+/**
+ * Where the session key lives.
+ *   browser → sessionStorage (in-memory, gone when the tab closes)
+ *   desktop → `window.dbflow.keyStore`: Electron safeStorage, i.e. the OS
+ *             keychain (macOS Keychain / Windows DPAPI / libsecret). The key
+ *             survives app restarts so credentials need not be re-entered,
+ *             yet the ciphertext in localStorage stays useless without the OS
+ *             user account. Falls back to sessionStorage when unavailable.
+ */
+const keyStore = () => globalThis.dbflow?.keyStore || null;
+async function keyGet(name) {
+  const ks = keyStore();
+  if (ks) { try { const v = await ks.get(name); if (v != null) return v; } catch { /* fall through */ } }
+  return sessionStorage.getItem(name);
+}
+async function keySet(name, value) {
+  const ks = keyStore();
+  if (ks) { try { if (await ks.set(name, value)) return; } catch { /* fall through */ } }
+  sessionStorage.setItem(name, value);
+}
+async function keyRemove(name) {
+  const ks = keyStore();
+  if (ks) { try { await ks.remove(name); } catch { /* ignore */ } }
+  sessionStorage.removeItem(name);
+}
 const SESSION_KEY     = 'jtl_session_key';       // sessionStorage
 const SESSION_KEY_FB  = 'jtl_session_key_fb';    // sessionStorage (fallback)
 const DB_CONFIG_KEY   = 'jtl_db_config';         // localStorage
@@ -49,18 +75,18 @@ function base64ToBuf(b64) {
 // ─── AES-GCM path (HTTPS / localhost) ────────────────────────────────────────
 
 async function getAesKey() {
-  const stored = sessionStorage.getItem(SESSION_KEY);
+  const stored = await keyGet(SESSION_KEY);
   if (stored) {
     try {
       const jwk = JSON.parse(stored);
       return await crypto.subtle.importKey('jwk', jwk, ALGO, false, ['encrypt', 'decrypt']);
     } catch {
-      sessionStorage.removeItem(SESSION_KEY);
+      await keyRemove(SESSION_KEY);
     }
   }
   const key = await crypto.subtle.generateKey(ALGO, true, ['encrypt', 'decrypt']);
   const jwk = await crypto.subtle.exportKey('jwk', key);
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify(jwk));
+  await keySet(SESSION_KEY, JSON.stringify(jwk));
   return key;
 }
 
@@ -169,4 +195,5 @@ export function clearDbConfig() {
   localStorage.removeItem(DB_CONFIG_KEY);
   sessionStorage.removeItem(SESSION_KEY);
   sessionStorage.removeItem(SESSION_KEY_FB);
+  keyStore()?.remove(SESSION_KEY)?.catch?.(() => {});
 }

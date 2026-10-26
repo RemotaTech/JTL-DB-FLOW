@@ -15,6 +15,8 @@ import { PrismaClient } from '@prisma/client';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { notFound, errorHandler } from '../bridge/errors.js';
+import { sanitizeFlow, hasSource, flowTooLarge, LIMITS } from '../src/lib/validate.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = dirname(__filename);
@@ -22,9 +24,34 @@ const __dirname  = dirname(__filename);
 const prisma = new PrismaClient();
 
 const app = express();
+const isProd = process.env.NODE_ENV === 'production';
 
 // ── Middleware ─────────────────────────────────────────────────────────────
-app.use(helmet({ contentSecurityPolicy: false }));
+// Behind Coolify/Traefik/nginx the client IP arrives in X-Forwarded-For. Without
+// `trust proxy` every user shares the proxy's IP → one global rate-limit bucket.
+// TRUST_PROXY overrides (e.g. "2" for two hops, "false" to disable).
+const trustProxy = process.env.TRUST_PROXY;
+app.set('trust proxy', trustProxy === undefined ? (isProd ? 1 : false) : (/^\d+$/.test(trustProxy) ? parseInt(trustProxy, 10) : trustProxy !== 'false'));
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      'default-src': ["'self'"],
+      'script-src':  ["'self'"],
+      'style-src':   ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      'font-src':    ["'self'", 'https://fonts.gstatic.com', 'data:'],
+      'img-src':     ["'self'", 'data:', 'blob:'],
+      // The SPA may be built against a remote hub/bridge (VITE_HUB_URL) — allow
+      // https + localhost dev ports; everything else (frames, objects) stays off.
+      'connect-src': ["'self'", 'https:', 'http://localhost:*', 'http://127.0.0.1:*'],
+      'frame-ancestors': ["'none'"],
+      'object-src':  ["'none'"],
+      'upgrade-insecure-requests': null,
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
 app.use(compression());
 
 // In production the frontend is served from this same origin, so the only
@@ -40,7 +67,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 // be paired with credentials:true, or any site could ride an authenticated
 // session against this API.
 app.use(cors({ origin: allowedOrigins, credentials: !!process.env.ALLOWED_ORIGINS }));
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '1mb' }));
 
 const limiter = rateLimit({
   windowMs: 60 * 1000,
@@ -55,6 +82,7 @@ app.use(limiter);
 const publishLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 10,
+  skip: () => process.env.NODE_ENV === 'test',
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many flows published from this address — try again later.' },
@@ -83,7 +111,17 @@ function normalizeTags(raw = '') {
 
 /** Parse a semicolon-separated tag string into an array. */
 function parseTags(str = '') {
-  return str.split(';').map(t => t.trim()).filter(Boolean);
+  return String(str).split(';').map(t => t.trim()).filter(Boolean);
+}
+
+/** Query-string values may arrive as arrays (`?a=1&a=2`) — always take one bounded string. */
+const qs = (v, max = 200) => (Array.isArray(v) ? v[0] : v) == null ? '' : String(Array.isArray(v) ? v[0] : v).slice(0, max);
+
+/** Prisma cuid / seeded `tpl-…` ids only — anything else is a 404, not a DB round-trip. */
+const ID_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
+function requireId(req, res, next) {
+  if (!ID_RE.test(req.params.id)) return res.status(404).json({ error: 'Flow not found' });
+  next();
 }
 
 // ── Routes ─────────────────────────────────────────────────────────────────
@@ -103,9 +141,12 @@ app.get('/api/hub/health', (_req, res) => {
  */
 app.get('/api/hub/flows', async (req, res) => {
   try {
-    const { tags, search, page = '1', limit = '20', sort = 'downloads' } = req.query;
-    const take = Math.min(parseInt(limit, 10) || 20, 100);
-    const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * take;
+    const tags   = qs(req.query.tags, 300);
+    const search = qs(req.query.search, 100).trim();
+    const sort   = qs(req.query.sort, 20);
+    const page   = Math.min(Math.max(parseInt(qs(req.query.page), 10) || 1, 1), 10_000);
+    const take   = Math.min(Math.max(parseInt(qs(req.query.limit), 10) || 20, 1), 100);
+    const skip   = (page - 1) * take;
 
     const andClauses = [];
 
@@ -130,7 +171,7 @@ app.get('/api/hub/flows', async (req, res) => {
       });
     }
 
-    if (req.query.featured === 'true') andClauses.push({ featured: true });
+    if (qs(req.query.featured) === 'true') andClauses.push({ featured: true });
 
     const where = andClauses.length > 0 ? { AND: andClauses } : {};
     const orderBy =
@@ -168,7 +209,7 @@ app.get('/api/hub/flows', async (req, res) => {
     res.json({
       flows,
       pagination: {
-        page: parseInt(page, 10) || 1,
+        page,
         limit: take,
         total,
         pages: Math.ceil(total / take),
@@ -184,7 +225,7 @@ app.get('/api/hub/flows', async (req, res) => {
  * GET /api/hub/flows/:id
  * Returns a single flow including its full flowData (nodes + edges).
  */
-app.get('/api/hub/flows/:id', async (req, res) => {
+app.get('/api/hub/flows/:id', requireId, async (req, res) => {
   try {
     const flow = await prisma.flow.findUnique({ where: { id: req.params.id } });
     if (!flow) return res.status(404).json({ error: 'Flow not found' });
@@ -202,9 +243,10 @@ app.get('/api/hub/flows/:id', async (req, res) => {
  */
 app.post('/api/hub/flows', publishLimiter, async (req, res) => {
   try {
-    const { title, description, tags, icon, color, flowData, author } = req.body;
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const { title, description, tags, icon, color, flowData, author } = body;
 
-    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+    if (typeof title !== 'string' || title.trim().length === 0) {
       return res.status(400).json({ error: 'Title is required' });
     }
     if (title.trim().length > 120) {
@@ -213,25 +255,36 @@ app.post('/api/hub/flows', publishLimiter, async (req, res) => {
     if (!flowData || typeof flowData !== 'object' || !Array.isArray(flowData.steps)) {
       return res.status(400).json({ error: 'flowData.steps[] is required' });
     }
-    const source = flowData.steps.find(s => s && s.type === 'source');
-    if (!source || !source.table) {
+    if (flowTooLarge(flowData)) {
+      return res.status(413).json({ error: `flowData exceeds ${Math.round(LIMITS.flowBytes / 1024)} KB` });
+    }
+    if (flowData.steps.length > LIMITS.steps) {
+      return res.status(400).json({ error: `A report may have at most ${LIMITS.steps} steps` });
+    }
+
+    // Normalise the pipeline: drop unknown/malformed steps, cap sizes, re-id.
+    const clean = sanitizeFlow(flowData);
+    if (!hasSource(clean)) {
       return res.status(400).json({ error: 'The report needs a source table' });
     }
 
-    // Sanitize visual fields
-    const safeColor = typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#3b82f6';
-    const safeIcon = typeof icon === 'string' && /^[a-zA-Z]{1,30}$/.test(icon) ? icon : 'sparkles';
+    // Sanitize visual + text fields (non-strings fall back to defaults)
+    const safeColor = typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color) ? color.toLowerCase() : '#3b82f6';
+    const safeIcon  = typeof icon === 'string' && /^[a-zA-Z]{1,30}$/.test(icon) ? icon : 'sparkles';
+    const safeDesc  = typeof description === 'string' ? description.trim().slice(0, 2000) : '';
+    const safeAuth  = (typeof author === 'string' ? author.trim().slice(0, 80) : '') || 'Anonymous';
+    const safeTags  = typeof tags === 'string' ? normalizeTags(tags.slice(0, 300)) : '';
 
     const flow = await prisma.flow.create({
       data: {
         title: title.trim(),
-        description: (description ?? '').trim().slice(0, 2000),
-        tags: normalizeTags(tags),
+        description: safeDesc,
+        tags: safeTags,
         icon: safeIcon,
         color: safeColor,
-        flowData,
-        author: (author ?? '').trim().slice(0, 80) || 'Anonymous',
-        stepCount: flowData.steps.length,
+        flowData: clean,
+        author: safeAuth,
+        stepCount: clean.steps.length,
         featured: false,
       },
     });
@@ -247,7 +300,7 @@ app.post('/api/hub/flows', publishLimiter, async (req, res) => {
  * POST /api/hub/flows/:id/download
  * Increments the download counter and returns the full flow data.
  */
-app.post('/api/hub/flows/:id/download', async (req, res) => {
+app.post('/api/hub/flows/:id/download', requireId, async (req, res) => {
   try {
     const flow = await prisma.flow.update({
       where: { id: req.params.id },
@@ -266,7 +319,7 @@ app.post('/api/hub/flows/:id/download', async (req, res) => {
  * Increments the execution counter — fired when a user actually RUNs an
  * imported community report against their database. Returns the new count.
  */
-app.post('/api/hub/flows/:id/execute', async (req, res) => {
+app.post('/api/hub/flows/:id/execute', requireId, async (req, res) => {
   try {
     const flow = await prisma.flow.update({
       where: { id: req.params.id },
@@ -285,7 +338,7 @@ app.post('/api/hub/flows/:id/execute', async (req, res) => {
  * DELETE /api/hub/flows/:id
  * Deletes a flow by id.
  */
-app.delete('/api/hub/flows/:id', requireAdminKey, async (req, res) => {
+app.delete('/api/hub/flows/:id', requireAdminKey, requireId, async (req, res) => {
   try {
     await prisma.flow.delete({ where: { id: req.params.id } });
     res.json({ success: true });
@@ -345,18 +398,25 @@ export function registerFinalHandlers(expressApp) {
   // ── Static frontend (production) ────────────────────────────────────────
   const distDir = join(__dirname, '..', 'dist');
   if (existsSync(distDir)) {
-    expressApp.use(express.static(distDir));
+    expressApp.use(express.static(distDir, {
+      index: false,
+      setHeaders(res, filePath) {
+        // Vite fingerprints everything under /assets → cache hard; index.html never.
+        if (/[\\/]assets[\\/]/.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        else res.setHeader('Cache-Control', 'no-cache');
+      },
+    }));
     // Express 5 removed bare `*` wildcard — use `/{*path}` for SPA fallback
-    expressApp.get('/{*path}', (_req, res) => res.sendFile(join(distDir, 'index.html')));
+    expressApp.get('/{*path}', (req, res, next) => {
+      if (req.path.startsWith('/api/')) return next();           // unknown API → JSON 404, not HTML
+      res.set('Cache-Control', 'no-cache');
+      res.sendFile(join(distDir, 'index.html'));
+    });
   }
 
   // ── 404 + error handlers ─────────────────────────────────────────────────
-  expressApp.use((_req, res) => res.status(404).json({ error: 'Route not found' }));
-  // eslint-disable-next-line no-unused-vars
-  expressApp.use((err, _req, res, _next) => {
-    console.error('Unhandled hub error:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  });
+  expressApp.use(notFound);
+  expressApp.use(errorHandler);
 }
 
 export { app, prisma };

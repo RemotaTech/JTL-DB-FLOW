@@ -8,7 +8,7 @@
  *  The highlight row hides while a search / tag filter is active.
  */
 import React, { useEffect, useState, useCallback } from 'react';
-import { Icon, Eyebrow, Btn, TextField, hexA, lighten, MONO } from './ui.jsx';
+import { Icon, Btn, TextField, Notice, hexA, lighten, MONO } from './ui.jsx';
 import { listFlows, hubStats, hubTags, downloadFlow } from '../../lib/hubApi.js';
 
 const fmt = (n) => (n >= 1000 ? (n / 1000).toFixed(1).replace('.0', '') + 'k' : String(n ?? 0));
@@ -62,8 +62,8 @@ export default function CommunityGallery({ onClose, onImport }) {
       const data = await listFlows({ page, limit: 12, sort, search, tags: activeTags.join(';') });
       setFlows(data.flows || []);
       setPagination(data.pagination || { total: 0, pages: 1 });
-    } catch {
-      setError('Community-Server nicht erreichbar.');
+    } catch (e) {
+      setError(e?.message === 'Failed to fetch' ? 'Community-Server nicht erreichbar.' : (e?.message || 'Community-Server nicht erreichbar.'));
       setFlows([]);
     } finally {
       setLoading(false);
@@ -80,8 +80,8 @@ export default function CommunityGallery({ onClose, onImport }) {
     try {
       const full = await downloadFlow(flow.id); // increments downloads, returns full
       onImport(full);
-    } catch {
-      setError('Import fehlgeschlagen.');
+    } catch (e) {
+      setError(`Import fehlgeschlagen: ${e?.message || 'unbekannter Fehler'}`);
     } finally {
       setImportingId(null);
     }
@@ -154,10 +154,10 @@ export default function CommunityGallery({ onClose, onImport }) {
           </div>
         )}
 
-        {error && <p style={{ color: lighten('#f43f5e'), fontSize: 13.5 }}>{error}</p>}
+        {error && <Notice kind="error" style={{ marginBottom: 14 }} action={<Btn variant="glass" size="sm" icon="rotate" onClick={fetchFlows}>Erneut laden</Btn>}>{error}</Notice>}
 
         {loading ? (
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13.5 }}>Lädt…</p>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 8 }}><Icon name="spinner" size={14} /> Lädt…</p>
         ) : flows.length === 0 ? (
           <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13.5 }}>Keine Berichte gefunden.</p>
         ) : (
@@ -211,10 +211,10 @@ function CompactRow({ flow, importing, onImport }) {
         <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{flow.title}</div>
         <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{flow.description || 'Keine Beschreibung.'}</div>
       </div>
-      <button onClick={onImport} disabled={importing} title="Importieren"
+      <button onClick={onImport} disabled={importing} title="Importieren" aria-label={`${flow.title} importieren`}
         style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: importing ? 'default' : 'pointer', transition: 'all .14s',
           background: hover ? hexA(c, 0.16) : 'rgba(255,255,255,0.05)', border: `1px solid ${hover ? hexA(c, 0.4) : 'rgba(255,255,255,0.1)'}`, color: hover ? lighten(c) : 'rgba(255,255,255,0.6)' }}>
-        <Icon name={importing ? 'zap' : 'download'} size={14} />
+        <Icon name={importing ? 'spinner' : 'download'} size={14} />
       </button>
     </div>
   );

@@ -46,7 +46,7 @@ Ships with a **Community Hub** where users can publish and discover shared workf
                                         Your MSSQL / JTL-WAWI DB
 ```
 
-> **Security model:** MSSQL credentials are entered in the browser Settings panel, encrypted with AES-256-GCM using a key that lives only in `sessionStorage` (cleared when the tab closes), and stored as ciphertext in `localStorage`. Credentials are sent exclusively to `localhost:3001` — never to the Hub or any external server.
+> **Security model:** MSSQL credentials are entered in the browser Settings panel, encrypted with AES-256-GCM using a key that lives only in `sessionStorage` (cleared when the tab closes), and stored as ciphertext in `localStorage`. They are sent with every query to the **bridge** — your own machine when running locally or self-hosted. On a hosted deployment that mounts the bridge on the hub, they travel to that server; the Settings dialog shows the exact target. The bridge only ever runs a single read-only `SELECT`, so a read-only SQL login is all it needs. See [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -68,6 +68,10 @@ Edit `.env`:
 - `DATABASE_URL` — PostgreSQL connection string for the Community Hub (Neon, Supabase, Railway, local, etc.)
 - `PORT` — Optional. MSSQL bridge port (default `3001`)
 - `HUB_PORT` — Optional. Hub server port (default `3002`)
+- `TRUST_PROXY` — Optional. Proxy hops in front of the hub (default `1` in production) so rate limits are per client IP
+- `BRIDGE_ALLOW_PRIVATE_HOSTS` — Optional. Whether the bridge may target LAN/loopback SQL Servers (default: `true` locally + self-host, `false` on the production hub)
+- `BRIDGE_CONNECT_TIMEOUT_MS` / `BRIDGE_REQUEST_TIMEOUT_MS` / `BRIDGE_MAX_ROWS` / `BRIDGE_MAX_SQL_LEN` / `BRIDGE_EXPORT_RATE_LIMIT` — Optional bridge limits (the last: schema exports per minute and IP, default `6`)
+- `BRIDGE_SCHEMA_WRITE_DIR` — Optional. Folder where `POST /api/schema/export` stores `<version>.json` (set automatically in the desktop app). Unset → the schema is returned and the browser downloads it. Leave unset on public hubs
 
 > **MSSQL credentials are NOT stored in `.env`.** They are entered in the browser Settings panel and kept encrypted in the browser. See [MSSQL Connection Settings](#mssql-connection-settings) below.
 
@@ -128,7 +132,58 @@ If your SQL Server uses a named instance (e.g. `SQLS`) **and** you know the TCP 
 
 ### Security note
 
-Credentials are stored as AES-256-GCM ciphertext in `localStorage`. The decryption key lives only in `sessionStorage` (in-memory, cleared on tab close). On a new browser session the key is gone, decryption fails gracefully, and you are prompted to re-enter credentials once. They are transmitted exclusively to `localhost:3001` (your own machine) and **never** to the Community Hub.
+Credentials are stored as AES-256-GCM ciphertext in `localStorage`. The decryption key lives only in `sessionStorage` (in-memory, cleared on tab close). On a new browser session the key is gone, decryption fails gracefully, and you are prompted to re-enter credentials once. They are transmitted only to the bridge origin (local: `localhost:3001` / same origin) and never stored server-side. „Vergessen“ in the Settings dialog wipes them from the browser.
+
+Bridge hardening (see `bridge/app.js`): SELECT-only gate, connection-descriptor validation, connect/request timeouts, row cap, per-IP rate limit, hashed pool keys, and an optional private-network block (`BRIDGE_ALLOW_PRIVATE_HOSTS`) for publicly hosted bridges.
+
+---
+
+## Desktop App (Electron)
+
+The same UI, settings and features as the web build, packaged as a native app for macOS, Windows and Linux. No Node, no terminal, no `npm run server` — the MSSQL bridge runs inside the app on a random loopback port, so credentials never leave the machine.
+
+```bash
+npm run electron:dev        # Vite dev server + Electron with hot reload
+npm run electron:start      # build dist/ and run the app from it
+npm run electron:build      # installer for the current OS → release/
+npm run electron:build:mac  # dmg + zip (arm64 + x64)
+npm run electron:build:win  # NSIS installer + portable exe
+npm run electron:build:linux# AppImage + deb
+```
+
+| What | Where |
+|---|---|
+| Main process | `electron/main.js` — window, menu, IPC, auto-update |
+| Loopback server | `electron/server.js` — `dist/` + bridge routes on `127.0.0.1:<random>` |
+| Schema updates | `electron/schemas.js` — import / download JTL schema JSONs |
+| Renderer bridge | `electron/preload.cjs` — exposes `window.dbflow` (contextIsolation on, sandbox on) |
+| Packaging | `electron-builder.yml`, icon in `build/` |
+
+### Updating JTL schema files without a new app version
+
+Bundled schemas (`versions/*.json`) ship with the app. Newer ones live in a per-user folder and take precedence:
+
+| OS | Folder |
+|---|---|
+| macOS | `~/Library/Application Support/DBFLOW/versions/` |
+| Windows | `%APPDATA%\DBFLOW\versions\` |
+| Linux | `~/.config/DBFLOW/versions/` |
+
+Three ways to add a version — all available under **Verbindung → JTL Wawi Version** and in the **Datei** menu:
+
+1. **Schema importieren…** — pick any `<version>.json` (`{ "tables": [{ "name", "columns": [...] }] }`, same format as `versions/`). The file name (or a `"version"` field) becomes the label in the dropdown.
+2. **Neue JTL-Versionen laden** — fetches every version on wawi-db.jtl-software.de that the app does not have yet (same procedure as `version-scraper.js`, progress shown as toasts).
+3. **Ordner öffnen** — drop files in by hand. The dropdown refreshes immediately; no restart needed.
+
+Deleting a file from that folder removes the version again (bundled versions cannot be removed).
+
+### Desktop-only behaviour
+
+- **Credentials survive restarts.** The AES-256-GCM key that protects the stored MSSQL credentials is kept via Electron `safeStorage` (macOS Keychain / Windows DPAPI / libsecret) instead of `sessionStorage`. „Vergessen“ removes key and ciphertext.
+- **Community Hub** defaults to `https://db-flow.remotatech.com`. Override with the `DBFLOW_HUB_URL` env var or `{ "hubUrl": "https://…" }` in `<userData>/settings.json`.
+- **App updates** are checked on start against GitHub Releases of `RemotaTech/JTL-DB-FLOW` (electron-updater, packaged builds only); **Nach Updates suchen…** is in the app menu. Publish a release with `npx electron-builder --publish always` and a `GH_TOKEN`.
+- External links open in the system browser; the window never navigates away from the app.
+- Builds are unsigned unless `CSC_LINK` / `CSC_KEY_PASSWORD` (and Apple notarization variables) are set in CI.
 
 ---
 
@@ -211,7 +266,11 @@ A hosted hub is expected to sit behind:
 }
 ```
 
-`connectionConfig` is **required**. Credentials are supplied from the browser Settings panel and only sent to `localhost:3001`.
+`connectionConfig` is **required** and validated (host/port/instance/database format, length caps). Only a single read-only `SELECT`/`WITH` statement is accepted (403 otherwise). Rows are capped at `BRIDGE_MAX_ROWS` (default 5000; header `X-Rows-Truncated: 1` when cut). Errors come back as `{ error, code }` with a German user-facing message (`ELOGIN` → 401, `ETIMEOUT` → 504, `ESOCKET` → 502, `EREQUEST` → 400).
+
+### `POST /api/schema/export`
+
+Reads the table/column structure of the connected database (fixed catalog query, no user SQL) so a version that is not published on wawi-db.jtl-software.de can still be used. Body: `{ connectionConfig, version, overwrite? }`. With `BRIDGE_SCHEMA_WRITE_DIR` set it stores `<version>.json` and answers `{ saved: true, version, tables, columns }`; otherwise `{ saved: false, version, schema }`. `409 EXISTS` if the version is already known and `overwrite` is not set. In the UI: Settings → JTL Wawi Version → *Struktur aus Datenbank übernehmen*. CLI equivalent: `npm run export:schema`.
 
 ---
 

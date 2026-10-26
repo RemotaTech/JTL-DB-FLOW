@@ -9,12 +9,6 @@
   --card-radius: 20px;
 }
 
-.glass {
-  background-color: color-mix(in srgb, white, transparent 95%);
-  backdrop-filter: blur(12px);
-  border: 1px solid color-mix(in srgb, white, transparent 90%);
-}
-
 body {
   background: #050505;
   color: #f4f4f5;
@@ -40,6 +34,31 @@ input::placeholder { color: rgba(255, 255, 255, 0.3); }
 /* iOS Safari: prevent auto-zoom on input focus (floor font-size at 16px on touch) */
 input, select, textarea {
   font-size: max(16px, 1em);
+}
+
+/* Focus rings for keyboard users only */
+:focus-visible { outline: 2px solid rgba(96,165,250,0.85); outline-offset: 2px; border-radius: 8px; }
+button, [role="button"] { -webkit-tap-highlight-color: transparent; }
+
+/* Spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.9s linear infinite; }
+
+/* Nav pill must never overflow a phone screen: wrap into two rows */
+.nav-pill { max-width: calc(100vw - 20px); }
+@media (max-width: 640px) {
+  /* Toolbar: full width, title on its own row, actions below */
+  .nav-wrap { left: 10px !important; right: 10px; top: 10px !important; transform: none !important; }
+  .nav-pill { flex-wrap: wrap; gap: 4px !important; }
+  .nav-pill .pill-sep { display: none; }
+  .nav-pill .pill-title { flex: 1 1 calc(100% - 50px); justify-content: flex-start; }
+  .nav-pill > :last-child { margin-left: auto !important; }
+  .pipeline-col { padding-top: 128px !important; }
+  .nav-pill .pill-label, .top-bar .pill-label { display: none; }
+  .top-bar { padding: 16px 14px !important; }
+  .pipeline-col { padding-left: 14px !important; padding-right: 14px !important; }
+  .results-split { grid-template-columns: 1fr !important; }
+  .results-sql { display: none !important; }
 }
 
 /* Interaction polish */

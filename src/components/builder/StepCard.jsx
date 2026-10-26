@@ -9,7 +9,7 @@ import {
 } from './ui.jsx';
 import {
   STEP_META, OPERATORS, OP_LABEL, AGGREGATES, availableFields, groupOutputs, stepsTables,
-  newFormatItem, newFormatRule,
+  newFormatItem, newFormatRule, stepIssues,
 } from '../../lib/steps.js';
 import { outgoingJoins } from '../../lib/relationships.js';
 
@@ -219,22 +219,42 @@ function JoinBody({ schema, step, steps, onChange, color }) {
   );
 }
 
-function ValueInput({ value, onChange }) {
+/**
+ * Value cell of a condition. Typing a literal or picking a `@variable` from
+ * the braces menu — a variable shows as a chip; click it to go back to text.
+ */
+function ValueInput({ value, onChange, vars = [], onOpenVars }) {
   const isVar = typeof value === 'string' && value.startsWith('@');
-  if (isVar) {
-    return (
-      <Chip color="#3b82f6" mono onClick={() => onChange('')}>
-        <Icon name="braces" size={12} /> {value}
-      </Chip>
-    );
-  }
+  const known = isVar && vars.some(v => '@' + v.name === value);
   return (
-    <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="Wert"
-      style={{ width: 130, height: 34, padding: '0 11px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#fff', fontSize: 13, fontFamily: MONO, outline: 'none' }} />
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      {isVar ? (
+        <Chip color={known ? '#3b82f6' : '#f59e0b'} mono onClick={() => onChange('')} style={{ cursor: 'pointer' }}
+          title={known ? 'Klicken, um stattdessen einen Wert einzugeben' : 'Variable existiert nicht — klicken zum Entfernen'}>
+          <Icon name={known ? 'braces' : 'warning'} size={12} /> {value}
+        </Chip>
+      ) : (
+        <input value={value ?? ''} onChange={(e) => onChange(e.target.value)} placeholder="Wert" aria-label="Wert" maxLength={500}
+          style={{ width: 130, height: 34, padding: '0 11px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#fff', fontSize: 13, fontFamily: MONO, outline: 'none' }} />
+      )}
+      <Dropdown width={230} trigger={(open) => (
+        <button title="Variable einsetzen" aria-label="Variable einsetzen" style={{ ...iconBtn, width: 26, height: 26, color: open ? '#93c5fd' : 'rgba(255,255,255,0.4)' }}><Icon name="braces" size={13} /></button>
+      )}>
+        {(close) => (
+          <>
+            {vars.map(v => (
+              <MenuItem key={v.id} mono active={value === '@' + v.name} onClick={() => { onChange('@' + v.name); close(); }} right={v.label}>@{v.name}</MenuItem>
+            ))}
+            {vars.length === 0 && <div style={{ padding: '8px 10px', fontSize: 12.5, color: 'rgba(255,255,255,0.4)' }}>Keine Variablen definiert.</div>}
+            {onOpenVars && <MenuItem icon="plus" onClick={() => { onOpenVars(); close(); }}>Variablen verwalten…</MenuItem>}
+          </>
+        )}
+      </Dropdown>
+    </span>
   );
 }
 
-function FilterBody({ schema, step, steps, onChange, color }) {
+function FilterBody({ schema, step, steps, onChange, color, vars, onOpenVars }) {
   const conds = step.conditions || [];
   const setCond = (i, patch) => onChange({ conditions: conds.map((c, idx) => idx === i ? { ...c, ...patch } : c) });
   const remove = (i) => onChange({ conditions: conds.filter((_, idx) => idx !== i) });
@@ -246,8 +266,8 @@ function FilterBody({ schema, step, steps, onChange, color }) {
           <span style={{ ...bodyLabel, width: 28 }}>{i === 0 ? 'Wo' : 'und'}</span>
           <FieldPicker schema={schema} steps={steps} value={c.field} color={color} onChange={(v) => setCond(i, { field: v })} />
           <SimplePicker color={color} width={140} value={c.op} options={OPERATORS} onChange={(v) => setCond(i, { op: v })} />
-          <ValueInput value={c.value} onChange={(v) => setCond(i, { value: v })} />
-          <button onClick={() => remove(i)} style={iconBtn}><Icon name="x" size={14} /></button>
+          <ValueInput value={c.value} onChange={(v) => setCond(i, { value: v })} vars={vars} onOpenVars={onOpenVars} />
+          <button onClick={() => remove(i)} style={iconBtn} title="Bedingung entfernen" aria-label="Bedingung entfernen"><Icon name="x" size={14} /></button>
         </div>
       ))}
       <button onClick={add} style={addRow(color)}><Icon name="plus" size={14} /> Bedingung hinzufügen</button>
@@ -287,7 +307,7 @@ function GroupBody({ schema, step, steps, onChange, color }) {
             <span style={bodyLabel}>von</span>
             <FieldPicker schema={schema} steps={steps} value={m.field} color={color} placeholder="alle (∗)" onChange={(v) => setMetric(i, { field: v })} />
             <span style={bodyLabel}>als</span>
-            <input value={m.as} onChange={(e) => setMetric(i, { as: e.target.value })}
+            <input value={m.as} onChange={(e) => setMetric(i, { as: e.target.value })} maxLength={80} placeholder="Name" aria-label="Name der Kennzahl"
               style={{ width: 130, height: 34, padding: '0 11px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: lighten(color), fontSize: 13, fontWeight: 550, outline: 'none' }} />
             <button onClick={() => removeMetric(i)} style={iconBtn}><Icon name="x" size={14} /></button>
           </div>
@@ -426,7 +446,7 @@ const OP_OPTS = OPERATORS.map(o => ({ value: o, label: OP_LABEL[o] || o }));
 
 function aliasInput(value, onChange, color, placeholder) {
   return (
-    <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+    <input value={value ?? ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} maxLength={80} aria-label={placeholder}
       style={{ width: 160, height: 34, padding: '0 11px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: lighten(color), fontSize: 13, fontWeight: 550, fontFamily: 'inherit', outline: 'none' }} />
   );
 }
@@ -445,7 +465,7 @@ function JoinToggle({ value, onChange, color }) {
   );
 }
 
-function FormatBody({ schema, step, steps, onChange, color }) {
+function FormatBody({ schema, step, steps, onChange, color, vars, onOpenVars }) {
   const items = step.items || [];
 
   // Formatierung operates on the fields chosen in Spalten (all if none selected).
@@ -494,7 +514,7 @@ function FormatBody({ schema, step, steps, onChange, color }) {
                       {ci > 0 && <JoinToggle value={r.join} onChange={(j) => setRule(i, ri, { join: j })} color={color} />}
                       <FieldPicker schema={schema} steps={steps} fields={scopedFields} value={c.field} color={color} onChange={(v) => setCond(i, ri, ci, { field: v })} />
                       <SimplePicker color={color} width={150} value={c.op} options={OP_OPTS} render={(v) => OP_LABEL[v] || v} onChange={(v) => setCond(i, ri, ci, { op: v })} />
-                      <ValueInput value={c.value} onChange={(v) => setCond(i, ri, ci, { value: v })} />
+                      <ValueInput value={c.value} onChange={(v) => setCond(i, ri, ci, { value: v })} vars={vars} onOpenVars={onOpenVars} />
                       {(r.conds.length > 1) && <button onClick={() => removeCond(i, ri, ci)} style={iconBtn}><Icon name="x" size={14} /></button>}
                     </React.Fragment>
                   ))}
@@ -529,10 +549,12 @@ function FormatBody({ schema, step, steps, onChange, color }) {
 const BODIES = { source: SourceBody, join: JoinBody, filter: FilterBody, group: GroupBody, sort: SortBody, columns: ColumnsBody, format: FormatBody };
 
 // ─── the card ───────────────────────────────────────────────────────────────
-export default function StepCard({ schema, step, steps, index, onChange, onRemove, canRemove }) {
+export default function StepCard({ schema, step, steps, index, onChange, onRemove, canRemove, vars, onOpenVars }) {
   const meta = STEP_META[step.type];
   const Body = BODIES[step.type];
   const [hover, setHover] = useState(false);
+  if (!meta || !Body) return null;   // unknown step type (corrupt import) — never crash the tree
+  const issues = stepIssues(step, steps, schema);
   return (
     <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{
@@ -556,9 +578,15 @@ export default function StepCard({ schema, step, steps, index, onChange, onRemov
             <Eyebrow color={lighten(meta.color)}>{meta.label}</Eyebrow>
             <div style={{ flex: 1 }} />
             <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', fontFamily: MONO }}>{String(index + 1).padStart(2, '0')}</span>
-            {canRemove && <button onClick={onRemove} style={{ ...iconBtn, opacity: hover ? 1 : 0.3 }} className="del" title="Entfernen"><Icon name="trash" size={15} /></button>}
+            {canRemove && <button onClick={onRemove} style={{ ...iconBtn, opacity: hover ? 1 : 0.3 }} className="del" title="Schritt entfernen" aria-label="Schritt entfernen"><Icon name="trash" size={15} /></button>}
           </div>
-          <Body schema={schema} step={step} steps={steps} onChange={onChange} color={meta.color} />
+          <Body schema={schema} step={step} steps={steps} onChange={onChange} color={meta.color} vars={vars} onOpenVars={onOpenVars} />
+          {issues.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, marginTop: 12, fontSize: 12, color: '#fde68a', lineHeight: 1.4 }}>
+              <Icon name="warning" size={13} style={{ marginTop: 1 }} />
+              <span>{issues.join(' · ')} <span style={{ color: 'rgba(255,255,255,0.4)' }}>— Schritt wird bis dahin übersprungen.</span></span>
+            </div>
+          )}
         </div>
       </div>
     </div>

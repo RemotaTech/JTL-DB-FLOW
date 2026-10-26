@@ -1,10 +1,10 @@
 /**
  * Builder chrome — background ambience, logo, top bar (empty view), floating
- * nav pill (builder view), pipeline breadcrumb, step connectors, add-step.
- * Ported from the Claude Design handoff.
+ * nav pill (builder view), pipeline breadcrumb, step connectors, add-step,
+ * bridge-offline banner and toasts.
  */
-import React, { useState } from 'react';
-import { Icon, Btn, Eyebrow, Dropdown, MenuItem, lighten } from './ui.jsx';
+import React, { useState, useEffect, useRef } from 'react';
+import { Icon, Btn, Eyebrow, Dropdown, MenuItem, Notice, Code, lighten, hexA } from './ui.jsx';
 import { STEP_META, ADDABLE } from '../../lib/steps.js';
 
 // ─── Background ambience ────────────────────────────────────────────────────
@@ -28,65 +28,129 @@ export function Logo() {
   );
 }
 
+/** Green/amber dot: is a database connection configured? */
+function ConnDot({ connected }) {
+  return <span title={connected ? 'Verbindung konfiguriert' : 'Keine Verbindung konfiguriert'} style={{ width: 7, height: 7, borderRadius: 999, background: connected ? '#34d399' : '#f59e0b', boxShadow: `0 0 0 3px ${hexA(connected ? '#10b981' : '#f59e0b', 0.2)}`, flexShrink: 0 }} />;
+}
+
 // ─── Top bar (empty / onboarding view) ──────────────────────────────────────
-export function TopBar({ onSettings, onHub }) {
+export function TopBar({ onSettings, onHub, connected }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 28px', position: 'relative', zIndex: 5 }}>
+    <div className="top-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '20px 28px', position: 'relative', zIndex: 5 }}>
       <Logo />
-      <div style={{ display: 'flex', gap: 8 }}>
-        {onHub && <Btn variant="ghost" icon="globe" size="sm" onClick={onHub}>Community</Btn>}
-        <Btn variant="ghost" icon="settings" size="sm" onClick={onSettings}>Verbindung</Btn>
+      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        {onHub && <Btn variant="ghost" icon="globe" size="sm" onClick={onHub} title="Community"><span className="pill-label">Community</span></Btn>}
+        <Btn variant="ghost" icon="settings" size="sm" onClick={onSettings} title="Verbindung">
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span className="pill-label">Verbindung</span> <ConnDot connected={connected} /></span>
+        </Btn>
       </div>
     </div>
   );
 }
 
-// ─── Nav pill (builder view) ────────────────────────────────────────────────
-const pillBtn = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 34, height: 34, borderRadius: 10, border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontFamily: 'inherit', transition: 'all .14s' };
-
-export function NavPill({ title, setTitle, editTitle, setEditTitle, onHome, onRun, running, onSettings, showVars, setShowVars, onSave, onPublish, saved }) {
+// ─── Bridge offline banner ──────────────────────────────────────────────────
+export function BridgeBanner({ status, onRetry, style = {} }) {
+  if (status !== 'offline') return null;
   return (
-    <div style={{
+    <div style={{ maxWidth: 720, margin: '0 auto', padding: '0 28px', ...style }}>
+      <Notice kind="offline" title="Bridge-Server nicht erreichbar"
+        action={<Btn variant="glass" size="sm" icon="rotate" onClick={onRetry}>Erneut prüfen</Btn>}>
+        Schema und Abfragen laufen über den lokalen Bridge-Server. Starten Sie ihn mit <Code>npm run server</Code> (oder <Code>npm run dev:all</Code>) und prüfen Sie erneut.
+      </Notice>
+    </div>
+  );
+}
+
+// ─── Toast ──────────────────────────────────────────────────────────────────
+export function Toast({ toast }) {
+  if (!toast) return null;
+  const color = { success: '#10b981', error: '#f43f5e', warning: '#f59e0b', info: '#3b82f6' }[toast.kind] || '#3b82f6';
+  const icon  = { success: 'check', error: 'xCircle', warning: 'warning', info: 'info' }[toast.kind] || 'info';
+  return (
+    <div key={toast.key} role="status" className="modal-in" style={{
+      position: 'fixed', left: '50%', bottom: 76, transform: 'translateX(-50%)', zIndex: 120,
+      display: 'inline-flex', alignItems: 'center', gap: 9, padding: '10px 14px', borderRadius: 12, maxWidth: 'min(520px, 92vw)',
+      background: 'rgba(16,16,20,0.94)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+      border: `1px solid ${hexA(color, 0.4)}`, boxShadow: '0 20px 50px -16px rgba(0,0,0,0.7)', fontSize: 13, color: '#fff',
+    }}>
+      <Icon name={icon} size={15} style={{ color: lighten(color) }} />
+      <span>{toast.text}</span>
+    </div>
+  );
+}
+
+// ─── Nav pill (builder view) ────────────────────────────────────────────────
+const pillBtn = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 34, height: 34, borderRadius: 10, border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontFamily: 'inherit', transition: 'all .14s', flexShrink: 0 };
+
+export function NavPill({ title, setTitle, editTitle, setEditTitle, onHome, onRun, onCancel, running, onSettings, showVars, setShowVars, onSave, onPublish, saved, dirty, issues = 0, connected }) {
+  const beforeEdit = useRef(title);
+  useEffect(() => { if (editTitle) beforeEdit.current = title; }, [editTitle]); // eslint-disable-line react-hooks/exhaustive-deps
+  const commit = () => { if (!title.trim()) setTitle(beforeEdit.current || 'Neuer Bericht'); setEditTitle(false); };
+  const cancel = () => { setTitle(beforeEdit.current); setEditTitle(false); };
+  const runTitle = !connected ? 'Zuerst Verbindung einrichten' : issues ? `${issues} Schritt(e) unvollständig — Abfrage läuft mit dem, was vollständig ist` : 'Ausführen (⌘/Strg + Enter)';
+
+  return (
+    <div className="nav-pill" style={{
       display: 'flex', alignItems: 'center', gap: 6, padding: 7, borderRadius: 16,
       background: 'rgba(16,16,20,0.82)', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)',
       border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 20px 50px -16px rgba(0,0,0,0.7)',
     }}>
-      <button onClick={onHome} style={pillBtn} title="Startseite">
+      <button onClick={onHome} style={pillBtn} title="Startseite" aria-label="Startseite">
         <div style={{ width: 26, height: 26, borderRadius: 8, background: 'linear-gradient(135deg, #3b82f6, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="database" size={14} style={{ color: '#fff' }} />
         </div>
       </button>
-      <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.1)' }} />
+      <div className="pill-sep" style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.1)' }} />
       {editTitle ? (
-        <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => setEditTitle(false)}
-          onKeyDown={(e) => e.key === 'Enter' && setEditTitle(false)}
+        <input autoFocus value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} onBlur={commit}
+          onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel(); }}
+          aria-label="Berichtstitel"
           style={{ width: 200, height: 32, padding: '0 10px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(59,130,246,0.5)', borderRadius: 9, color: '#fff', fontSize: 14, fontWeight: 600, fontFamily: 'inherit', outline: 'none' }} />
       ) : (
-        <button onClick={() => setEditTitle(true)} style={{ ...pillBtn, gap: 8, padding: '0 12px', height: 32 }}>
+        <button className="pill-title" onClick={() => setEditTitle(true)} style={{ ...pillBtn, gap: 8, padding: '0 12px', height: 32, minWidth: 0 }} title="Titel bearbeiten">
           <span style={{ fontSize: 14, fontWeight: 600, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+          {dirty && <span title="Ungespeicherte Änderungen" style={{ width: 6, height: 6, borderRadius: 999, background: '#f59e0b', flexShrink: 0 }} />}
           <Icon name="pencil" size={13} style={{ color: 'rgba(255,255,255,0.35)' }} />
         </button>
       )}
-      <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.1)' }} />
-      <button onClick={() => setShowVars(v => !v)} style={{ ...pillBtn, gap: 7, padding: '0 12px', height: 34, color: showVars ? '#93c5fd' : 'rgba(255,255,255,0.7)', background: showVars ? 'rgba(59,130,246,0.14)' : 'transparent' }}>
-        <Icon name="braces" size={15} /> <span style={{ fontSize: 13, fontWeight: 550 }}>Variablen</span>
+      <div className="pill-sep" style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.1)' }} />
+      <button onClick={() => setShowVars(v => !v)} style={{ ...pillBtn, gap: 7, padding: '0 12px', height: 34, color: showVars ? '#93c5fd' : 'rgba(255,255,255,0.7)', background: showVars ? 'rgba(59,130,246,0.14)' : 'transparent' }} title="Variablen">
+        <Icon name="braces" size={15} /> <span className="pill-label" style={{ fontSize: 13, fontWeight: 550 }}>Variablen</span>
       </button>
-      <button onClick={onSettings} style={{ ...pillBtn, width: 34, height: 34 }} title="Verbindung"><Icon name="settings" size={16} /></button>
-      {onSave && <button onClick={onSave} style={{ ...pillBtn, width: 34, height: 34, color: saved ? '#6ee7b7' : 'rgba(255,255,255,0.7)' }} title="Lokal speichern"><Icon name={saved ? 'check' : 'folder'} size={16} /></button>}
-      {onPublish && <button onClick={onPublish} style={{ ...pillBtn, width: 34, height: 34 }} title="In Community veröffentlichen"><Icon name="globe" size={16} /></button>}
-      <Btn variant="primary" icon="play" size="md" onClick={onRun} style={{ marginLeft: 2 }}>{running ? 'Läuft…' : 'Ausführen'}</Btn>
+      <button onClick={onSettings} style={{ ...pillBtn, width: 34, height: 34, position: 'relative' }} title="Verbindung" aria-label="Verbindung">
+        <Icon name="settings" size={16} />
+        {!connected && <span style={{ position: 'absolute', top: 6, right: 6, width: 7, height: 7, borderRadius: 999, background: '#f59e0b', border: '2px solid rgba(16,16,20,0.9)' }} />}
+      </button>
+      {onSave && <button onClick={onSave} style={{ ...pillBtn, width: 34, height: 34, color: saved ? '#6ee7b7' : 'rgba(255,255,255,0.7)' }} title="Lokal speichern (⌘/Strg + S)" aria-label="Lokal speichern"><Icon name={saved ? 'check' : 'folder'} size={16} /></button>}
+      {onPublish && <button onClick={onPublish} style={{ ...pillBtn, width: 34, height: 34 }} title="In Community veröffentlichen" aria-label="In Community veröffentlichen"><Icon name="globe" size={16} /></button>}
+      {running ? (
+        <Btn variant="glass" icon="stop" size="md" onClick={onCancel} style={{ marginLeft: 2 }} title="Abfrage abbrechen">Abbrechen</Btn>
+      ) : (
+        <Btn variant="primary" icon={connected ? 'play' : 'settings'} size="md" onClick={onRun} style={{ marginLeft: 2, position: 'relative' }} title={runTitle}>
+          {connected ? 'Ausführen' : 'Verbinden'}
+          {issues > 0 && connected && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 700, padding: '1px 6px', borderRadius: 999, background: 'rgba(0,0,0,0.25)', color: '#fde68a' }}>{issues}</span>}
+        </Btn>
+      )}
     </div>
   );
 }
 
 // ─── Pipeline breadcrumb ────────────────────────────────────────────────────
-export function PipelineHeader({ steps }) {
+export function PipelineHeader({ steps, issues = 0 }) {
   return (
     <div style={{ marginBottom: 22, paddingLeft: 4 }}>
-      <Eyebrow style={{ marginBottom: 8 }}>Abfrage-Pipeline</Eyebrow>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <Eyebrow>Abfrage-Pipeline</Eyebrow>
+        {issues > 0 && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#fde68a' }}>
+            <Icon name="warning" size={12} /> {issues} unvollständig
+          </span>
+        )}
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         {steps.map((s, i) => {
           const m = STEP_META[s.type];
+          if (!m) return null;
           return (
             <React.Fragment key={s.id}>
               {i > 0 && <Icon name="chevronRight" size={13} style={{ color: 'rgba(255,255,255,0.22)' }} />}
@@ -105,6 +169,14 @@ export function PipelineHeader({ steps }) {
 // join (Verknüpfung) may repeat; every other step type is single-instance.
 const isTaken = (type, steps) => type !== 'join' && steps.some(s => s.type === type);
 
+function StepMenu({ steps, onPick, close }) {
+  return ADDABLE.map(type => {
+    const m = STEP_META[type];
+    const taken = isTaken(type, steps);
+    return <MenuItem key={type} icon={m.icon} iconColor={lighten(m.color)} disabled={taken} right={taken ? 'hinzugefügt' : undefined} onClick={() => { onPick(type); close(); }}>{m.label}</MenuItem>;
+  });
+}
+
 export function Connector({ terminal, onInsert, steps = [] }) {
   const [hover, setHover] = useState(false);
   const h = terminal ? 26 : 30;
@@ -119,15 +191,11 @@ export function Connector({ terminal, onInsert, steps = [] }) {
       {!terminal && onInsert && (
         <div style={{ position: 'absolute', top: '50%', left: 0, transform: 'translate(-50%,-50%)', opacity: hover ? 1 : 0, transition: 'opacity .15s', zIndex: 5 }}>
           <Dropdown align="left" width={190} trigger={() => (
-            <button style={{ width: 22, height: 22, borderRadius: '50%', background: '#3b82f6', border: '2px solid #0a0a0d', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 12px -2px rgba(59,130,246,0.6)' }}>
+            <button aria-label="Schritt hier einfügen" style={{ width: 22, height: 22, borderRadius: '50%', background: '#3b82f6', border: '2px solid #0a0a0d', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 12px -2px rgba(59,130,246,0.6)' }}>
               <Icon name="plus" size={13} />
             </button>
           )}>
-            {(close) => ADDABLE.map(type => {
-              const m = STEP_META[type];
-              const taken = isTaken(type, steps);
-              return <MenuItem key={type} icon={m.icon} iconColor={lighten(m.color)} disabled={taken} right={taken ? 'hinzugefügt' : undefined} onClick={() => { onInsert(type); close(); }}>{m.label}</MenuItem>;
-            })}
+            {(close) => <StepMenu steps={steps} onPick={onInsert} close={close} />}
           </Dropdown>
         </div>
       )}
@@ -153,11 +221,7 @@ export function AddStepButton({ onAdd, steps = [] }) {
         </div>
       </button>
     )}>
-      {(close) => ADDABLE.map(type => {
-        const m = STEP_META[type];
-        const taken = isTaken(type, steps);
-        return <MenuItem key={type} icon={m.icon} iconColor={lighten(m.color)} disabled={taken} right={taken ? 'hinzugefügt' : undefined} onClick={() => { onAdd(type); close(); }}>{m.label}</MenuItem>;
-      })}
+      {(close) => <StepMenu steps={steps} onPick={onAdd} close={close} />}
     </Dropdown>
   );
 }
